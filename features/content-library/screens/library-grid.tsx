@@ -131,44 +131,6 @@ export function LibraryGrid({ username }: LibraryGridProps) {
   const avatarBg = getToken(scheme, 'avatarBg');
   const avatarFg = getToken(scheme, 'avatarFg');
 
-  // #region agent log
-  if (Platform.OS === 'web') {
-    try {
-      fetch('http://127.0.0.1:7674/ingest/795d5b8a-6bc5-49a6-9219-532e850263d6', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f2c4d0' },
-        body: JSON.stringify({
-          sessionId: 'f2c4d0',
-          location: 'features/content-library/screens/library-grid.tsx:LibraryGrid',
-          message: 'LibraryGrid render',
-          data: {
-            username,
-            isMe,
-            isReady,
-            hasApiKey: Boolean(apiKey),
-            apiKeyLen: apiKey ? apiKey.length : 0,
-            hasCurrentUserId: Boolean(currentUserId),
-            currentUserIdLen: currentUserId ? currentUserId.length : 0,
-            ownerIdLen: ownerId ? ownerId.length : 0,
-            isOwner,
-            canQuery,
-            listStatus: list.status,
-            listIsError: list.isError,
-            listIsPending: list.isPending,
-            flatItemsCount: flatItems.length,
-            willHitLoadingBranch: isMe && !isReady,
-            willHitNoApiKeyBranch: isMe && isReady && !apiKey,
-            willHitNoOwnerIdBranch: isMe && isReady && Boolean(apiKey) && !currentUserId,
-          },
-          runId: 'post-fix',
-          hypothesisId: 'H6',
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-    } catch {}
-  }
-  // #endregion
-
   const ctaStyle = StyleSheet.flatten([styles.cta, { backgroundColor: accentUpload }]);
 
   if (isMe && !isReady) {

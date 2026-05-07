@@ -74,57 +74,6 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
-  // #region agent log
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-    const sendLog = (location: string, message: string, data: Record<string, unknown>) => {
-      try {
-        fetch('http://127.0.0.1:7674/ingest/795d5b8a-6bc5-49a6-9219-532e850263d6', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f2c4d0' },
-          body: JSON.stringify({
-            sessionId: 'f2c4d0',
-            location,
-            message,
-            data,
-            hypothesisId: 'H1,H2,H3,H4,H5',
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-      } catch {}
-    };
-    const onError = (e: ErrorEvent) => {
-      sendLog('window.onerror', 'window error event', {
-        message: e?.message,
-        filename: e?.filename,
-        lineno: e?.lineno,
-        colno: e?.colno,
-        errorName: (e?.error as Error | undefined)?.name,
-        errorMessage: (e?.error as Error | undefined)?.message,
-        stack: (e?.error as Error | undefined)?.stack,
-      });
-    };
-    const onRejection = (e: PromiseRejectionEvent) => {
-      const reason = e?.reason as Error | undefined;
-      sendLog('window.onunhandledrejection', 'unhandled promise rejection', {
-        reasonName: reason?.name,
-        reasonMessage: reason?.message,
-        stack: reason?.stack,
-      });
-    };
-    window.addEventListener('error', onError);
-    window.addEventListener('unhandledrejection', onRejection);
-    sendLog('app/_layout.tsx:RootLayout', 'global error listeners attached', {
-      href: window.location?.href,
-      userAgent: window.navigator?.userAgent,
-    });
-    return () => {
-      window.removeEventListener('error', onError);
-      window.removeEventListener('unhandledrejection', onRejection);
-    };
-  }, []);
-  // #endregion
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

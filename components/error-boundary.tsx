@@ -23,49 +23,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     log.error('ErrorBoundary caught', error, info.componentStack);
-    // #region agent log
-    try {
-      fetch('http://127.0.0.1:7674/ingest/795d5b8a-6bc5-49a6-9219-532e850263d6', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f2c4d0' },
-        body: JSON.stringify({
-          sessionId: 'f2c4d0',
-          location: 'components/error-boundary.tsx:25',
-          message: 'ErrorBoundary caught error',
-          data: {
-            name: error?.name,
-            errorMessage: error?.message,
-            stack: error?.stack?.slice(0, 1500),
-            componentStack: info?.componentStack?.slice(0, 1500),
-          },
-          hypothesisId: 'H4',
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-    } catch {}
-    // #endregion
-    // #region agent log 408fbe
-    try {
-      fetch('http://127.0.0.1:7668/ingest/9f6f7fd6-c60b-4cba-93ac-703e2e5b4d17', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '408fbe' },
-        body: JSON.stringify({
-          sessionId: '408fbe',
-          runId: 'post-fix',
-          location: 'components/error-boundary.tsx:25',
-          message: 'ErrorBoundary caught error (post-fix verification)',
-          data: {
-            name: error?.name,
-            errorMessage: error?.message,
-            stack: error?.stack,
-            componentStack: info?.componentStack,
-          },
-          hypothesisId: 'H6',
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-    } catch {}
-    // #endregion
   }
 
   reset = () => {

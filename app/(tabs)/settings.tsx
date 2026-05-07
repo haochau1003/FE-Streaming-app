@@ -38,77 +38,26 @@ export default function SettingsScreen() {
     defaultValues: { apiKey: apiKey ?? '', ownerId: currentUserId ?? '' },
   });
 
-  // #region agent log
-  const dbg = (location: string, message: string, data: Record<string, unknown>) => {
+  const onSubmit = handleSubmit(async (values) => {
+    setBusy(true);
     try {
-      fetch('http://127.0.0.1:7674/ingest/795d5b8a-6bc5-49a6-9219-532e850263d6', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f2c4d0' },
-        body: JSON.stringify({
-          sessionId: 'f2c4d0',
-          location,
-          message,
-          data,
-          hypothesisId: 'H1,H2,H3,H5',
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-    } catch {}
-  };
-  // #endregion
-
-  const onSubmit = handleSubmit(
-    async (values) => {
-      // #region agent log
-      dbg('app/(tabs)/settings.tsx:onSubmit:start', 'submit handler entered', {
-        apiKeyLen: values.apiKey?.length ?? 0,
-        ownerIdLen: values.ownerId?.length ?? 0,
-        ownerIdEmpty: !values.ownerId,
+      await setApiKey(values.apiKey);
+      await setCurrentUserId(values.ownerId && values.ownerId.length > 0 ? values.ownerId : null);
+      toast.show({
+        level: 'success',
+        title: 'Saved',
+        message: 'Your API key is stored securely on this device.',
       });
-      // #endregion
-      setBusy(true);
-      try {
-        await setApiKey(values.apiKey);
-        await setCurrentUserId(
-          values.ownerId && values.ownerId.length > 0 ? values.ownerId : null,
-        );
-        // #region agent log
-        dbg('app/(tabs)/settings.tsx:onSubmit:success', 'save completed', {
-          apiKeyLen: values.apiKey?.length ?? 0,
-        });
-        // #endregion
-        toast.show({
-          level: 'success',
-          title: 'Saved',
-          message: 'Your API key is stored securely on this device.',
-        });
-      } catch (e) {
-        // #region agent log
-        dbg('app/(tabs)/settings.tsx:onSubmit:error', 'save threw', {
-          name: (e as Error)?.name,
-          errorMessage: e instanceof Error ? e.message : String(e),
-          stack: (e as Error)?.stack?.slice(0, 800),
-        });
-        // #endregion
-        toast.show({
-          level: 'error',
-          title: 'Could not save',
-          message: e instanceof Error ? e.message : 'Unknown error',
-        });
-      } finally {
-        setBusy(false);
-      }
-    },
-    (errors) => {
-      // #region agent log
-      dbg('app/(tabs)/settings.tsx:onSubmit:validationFailed', 'zod rejected form', {
-        apiKeyError: errors.apiKey?.message,
-        ownerIdError: errors.ownerId?.message,
-        errorKeys: Object.keys(errors),
+    } catch (e) {
+      toast.show({
+        level: 'error',
+        title: 'Could not save',
+        message: e instanceof Error ? e.message : 'Unknown error',
       });
-      // #endregion
-    },
-  );
+    } finally {
+      setBusy(false);
+    }
+  });
 
   const onClear = async () => {
     setBusy(true);

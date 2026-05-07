@@ -58,29 +58,6 @@ export const config: RuntimeConfig = {
       : defaults.MEDIA_UPLOAD_LIMIT_PER_MINUTE,
 };
 
-// #region agent log
-try {
-  fetch('http://127.0.0.1:7674/ingest/795d5b8a-6bc5-49a6-9219-532e850263d6', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f2c4d0' },
-    body: JSON.stringify({
-      sessionId: 'f2c4d0',
-      location: 'lib/config.ts:moduleLoad',
-      message: 'runtime config resolved',
-      data: {
-        apiBase: config.API_BASE,
-        socketUrl: config.SOCKET_URL,
-        extraApiBase: typeof extra.API_BASE === 'string' ? extra.API_BASE : null,
-        extraIsEmpty: Object.keys(extra).length === 0,
-      },
-      runId: 'post-fix',
-      hypothesisId: 'H9',
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-} catch {}
-// #endregion
-
 export function maxUploadBytes(): number {
   return config.MEDIA_MAX_SIZE_MB * 1024 * 1024;
 }

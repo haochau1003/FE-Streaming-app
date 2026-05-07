@@ -9,26 +9,6 @@ import React, {
 
 import * as SecureStore from './secure-store';
 
-// #region agent log
-const dbgAuth = (location: string, message: string, data: Record<string, unknown>) => {
-  try {
-    fetch('http://127.0.0.1:7674/ingest/795d5b8a-6bc5-49a6-9219-532e850263d6', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f2c4d0' },
-      body: JSON.stringify({
-        sessionId: 'f2c4d0',
-        location,
-        message,
-        data,
-        hypothesisId: 'H2,H3,H5',
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  } catch {}
-};
-let mountCounter = 0;
-// #endregion
-
 interface AuthContextValue {
   apiKey: string | null;
   currentUserId: string | null;
@@ -52,74 +32,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    // #region agent log
-    mountCounter += 1;
-    const myMount = mountCounter;
-    dbgAuth('lib/auth/auth-provider.tsx:mount', 'AuthProvider mounted', {
-      mountCount: myMount,
+    Promise.all([SecureStore.getApiKey(), SecureStore.getOwnerId()]).then(([key, ownerId]) => {
+      if (cancelled) return;
+      apiKeyRef = key;
+      setApiKeyState(key);
+      setCurrentUserId(ownerId);
+      setReady(true);
     });
-    // #endregion
-    Promise.all([SecureStore.getApiKey(), SecureStore.getOwnerId()])
-      .then(([key, ownerId]) => {
-        // #region agent log
-        dbgAuth('lib/auth/auth-provider.tsx:mount:loaded', 'SecureStore initial read', {
-          mountCount: myMount,
-          cancelled,
-          keyPresent: Boolean(key),
-          keyLen: key ? key.length : 0,
-          ownerIdPresent: Boolean(ownerId),
-          ownerIdLen: ownerId ? ownerId.length : 0,
-        });
-        // #endregion
-        if (cancelled) return;
-        apiKeyRef = key;
-        setApiKeyState(key);
-        setCurrentUserId(ownerId);
-        setReady(true);
-      })
-      .catch((err) => {
-        // #region agent log
-        dbgAuth('lib/auth/auth-provider.tsx:mount:loadError', 'SecureStore initial read threw', {
-          mountCount: myMount,
-          name: (err as Error)?.name,
-          errorMessage: (err as Error)?.message,
-        });
-        // #endregion
-      });
     return () => {
       cancelled = true;
     };
   }, []);
 
   const setApiKey = useCallback(async (key: string) => {
-    // #region agent log
-    dbgAuth('lib/auth/auth-provider.tsx:setApiKey:before', 'about to write key', {
-      keyLen: key?.length ?? 0,
-    });
-    // #endregion
-    try {
-      await SecureStore.setApiKey(key);
-      // #region agent log
-      const readBack = await SecureStore.getApiKey();
-      dbgAuth('lib/auth/auth-provider.tsx:setApiKey:roundtrip', 'wrote then read back', {
-        wroteLen: key?.length ?? 0,
-        readBackPresent: Boolean(readBack),
-        readBackLen: readBack ? readBack.length : 0,
-        match: readBack === key,
-      });
-      // #endregion
-      apiKeyRef = key;
-      setApiKeyState(key);
-    } catch (err) {
-      // #region agent log
-      dbgAuth('lib/auth/auth-provider.tsx:setApiKey:throw', 'SecureStore.setApiKey threw', {
-        name: (err as Error)?.name,
-        errorMessage: (err as Error)?.message,
-        stack: (err as Error)?.stack?.slice(0, 800),
-      });
-      // #endregion
-      throw err;
-    }
+    await SecureStore.setApiKey(key);
+    apiKeyRef = key;
+    setApiKeyState(key);
   }, []);
 
   const clearApiKey = useCallback(async () => {
