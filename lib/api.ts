@@ -1,4 +1,5 @@
 import { config } from './config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ===== Types matching Flask response shapes =====
 
@@ -26,6 +27,20 @@ export interface CreatedStream extends Stream {
   broadcast: BroadcastCredentials;
 }
 
+export interface User {
+  id: string;
+  username: string;
+  display_name: string | null;
+  email: string | null;
+  avatar_media_id: string | null;
+  bio: string | null;
+  dob: string | null;
+  stream_key: string | null;
+  api_key?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // ===== Errors =====
 
 export class ApiError extends Error {
@@ -43,12 +58,20 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${config.apiBaseUrl}${path}`;
+  const apiKey = await AsyncStorage.getItem('api_key');
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> || {}),
+  };
+  
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
   const res = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   let body: unknown = null;
@@ -99,4 +122,26 @@ export async function endStream(
 
 export async function likeStream(streamId: string): Promise<{ like_count: number }> {
   return request(`/api/v1/streams/${streamId}/like`, { method: 'POST' });
+}
+
+// ===== Auth API =====
+
+export async function loginUser(input: any): Promise<User> {
+  return request('/api/v1/auth/login', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function registerUser(input: any): Promise<User> {
+  return request('/api/v1/auth/register', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function logoutUser(): Promise<{message: string}> {
+  return request('/api/v1/auth/logout', { method: 'POST' });
+}
+
+export async function getProfile(): Promise<User> {
+  return request('/api/v1/auth/profile');
+}
+
+export async function updateProfile(input: any): Promise<User> {
+  return request('/api/v1/auth/profile', { method: 'PUT', body: JSON.stringify(input) });
 }
