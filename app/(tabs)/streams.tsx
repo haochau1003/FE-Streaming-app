@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   ViewToken,
 } from 'react-native';
-import { listStreams, Stream } from '@/lib/api';
+import { listStreams, Stream } from '@/lib/streams';
 import StreamPlayer from '@/components/stream-player';
 
 const { height } = Dimensions.get('window');

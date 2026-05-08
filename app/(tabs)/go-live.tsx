@@ -19,15 +19,14 @@ import {
   CreatedStream,
   Stream,
   StreamStatus,
-} from '@/lib/api';
+} from '@/lib/streams';
 
 type Phase = 'form' | 'waiting' | 'connecting' | 'live';
 
 const STATUS_DISPLAY: Record<StreamStatus, { label: string; color: string }> = {
   idle: { label: 'Waiting for broadcaster...', color: '#FFB800' },
-  connected: { label: 'Connecting...', color: '#FF9500' },
   active: { label: 'LIVE', color: '#FF4458' },
-  disconnected: { label: 'Reconnecting...', color: '#FFB800' },
+  disconnected: { label: 'Reconnecting...', color: '#FF9500' },
   ended: { label: 'Ended', color: '#666' },
 };
 
@@ -88,16 +87,13 @@ export default function GoLiveScreen() {
         const status = result.stream.status;
         setCurrentStream(result.stream);
 
-        if (status === 'connected') {
-          setPhase('connecting');
-        } else if (status === 'active') {
+        if (status === 'active') {
           setPhase('live');
           if (!startedAtRef.current && result.stream.started_at) {
             startedAtRef.current = new Date(result.stream.started_at).getTime();
           }
         } else if (status === 'disconnected') {
-          // Stay in 'live' or 'connecting' phase but show reconnecting status
-          // (don't drop to waiting — Mux may resume)
+          setPhase('connecting');
         } else if (status === 'ended') {
           setPhase('form');
           setStream(null);

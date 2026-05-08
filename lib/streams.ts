@@ -42,7 +42,7 @@ export class ApiError extends Error {
 // ===== HTTP helper =====
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const url = `${config.apiBaseUrl}${path}`;
+  const url = `${config.API_BASE}${path}`;
   const res = await fetch(url, {
     ...options,
     headers: {

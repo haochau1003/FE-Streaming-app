@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';
-import { Stream, likeStream } from '@/lib/api';
+import { Stream, likeStream } from '@/lib/streams';
 
 const { width, height } = Dimensions.get('window');
 
