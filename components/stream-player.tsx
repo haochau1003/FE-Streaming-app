@@ -1,15 +1,21 @@
 import { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   Dimensions,
-  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';
-import { Stream, likeStream } from '@/lib/streams';
+import { Ionicons } from '@expo/vector-icons';
+
+import { Stream } from '@/lib/streams';
+import { CommentPanel } from '@/features/social/components/comment-panel';
+import { FloatingHearts } from '@/features/social/components/floating-hearts';
+import { FollowButton } from '@/features/social/components/follow-button';
+import { useComments } from '@/features/social/hooks/use-comments';
 
 const { width, height } = Dimensions.get('window');
 
@@ -19,15 +25,16 @@ interface StreamPlayerProps {
 }
 
 export default function StreamPlayer({ stream, isActive }: StreamPlayerProps) {
-  const [likeCount, setLikeCount] = useState(stream.like_count);
-  const [liking, setLiking] = useState(false);
+  const [heartTrigger, setHeartTrigger] = useState(0);
+  const [inputText, setInputText] = useState('');
+
+  const { comments, sendComment, sendEmote } = useComments(stream.id);
 
   const player = useVideoPlayer(stream.playback_url ?? '', (p) => {
     p.loop = false;
     p.muted = false;
   });
 
-  // Play only the visible stream; pause the rest so audio doesn't bleed
   useEvent(player, 'statusChange', { status: 'idle' });
   if (isActive) {
     player.play();
@@ -35,26 +42,19 @@ export default function StreamPlayer({ stream, isActive }: StreamPlayerProps) {
     player.pause();
   }
 
-  const handleLike = async () => {
-    if (liking) return;
-    setLiking(true);
-    // Optimistic update
-    setLikeCount((c) => c + 1);
-    try {
-      const result = await likeStream(stream.id);
-      setLikeCount(result.like_count);
-    } catch (err) {
-      // Revert on error
-      setLikeCount((c) => c - 1);
-      console.error('Like failed:', err);
-    } finally {
-      setLiking(false);
-    }
+  const handleSend = () => {
+    if (!inputText.trim()) return;
+    sendComment(inputText.trim());
+    setInputText('');
+  };
+
+  const handleHeart = () => {
+    sendEmote('heart');
+    setHeartTrigger((t) => t + 1);
   };
 
   return (
     <View style={styles.container}>
-      {/* Video fills the entire background */}
       <VideoView
         player={player}
         style={styles.video}
@@ -62,7 +62,7 @@ export default function StreamPlayer({ stream, isActive }: StreamPlayerProps) {
         nativeControls={false}
       />
 
-      {/* Top bar: streamer info + viewer count + follow */}
+      {/* Top bar: avatar pill + viewer count + follow */}
       <View style={styles.topBar}>
         <View style={styles.streamerPill}>
           <View style={styles.avatarPlaceholder} />
@@ -70,55 +70,48 @@ export default function StreamPlayer({ stream, isActive }: StreamPlayerProps) {
             {stream.title || 'Untitled'}
           </Text>
         </View>
-
         <View style={styles.viewerCount}>
           <Text style={styles.eyeIcon}>👁</Text>
           <Text style={styles.viewerNum}>—</Text>
         </View>
-
-        <TouchableOpacity style={styles.followBtn} disabled>
-          <Text style={styles.followText}>Follow</Text>
-        </TouchableOpacity>
+        {/* userId will be wired once Member 2 exposes stream.user_id in the API */}
+        <FollowButton userId={null} />
       </View>
 
-      {/* Chat placeholder — teammate's component will go here */}
-      <View style={styles.chatPlaceholder}>
-        <Text style={styles.chatPlaceholderText}>💬 Chat coming soon</Text>
-      </View>
+      {/* Live comment overlay */}
+      <CommentPanel comments={comments} />
 
-      {/* Bottom row: chat input placeholder + like button */}
+      {/* Hearts float up from the heart button */}
+      <FloatingHearts trigger={heartTrigger} />
+
+      {/* Bottom row: text input + heart button */}
       <View style={styles.bottomRow}>
-        <View style={styles.inputPlaceholder}>
-          <Text style={styles.inputText}>Type ...</Text>
+        <View style={styles.inputWrap}>
+          <TextInput
+            style={styles.input}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Type ..."
+            placeholderTextColor="#888"
+            onSubmitEditing={handleSend}
+            returnKeyType="send"
+            maxLength={500}
+          />
+          <TouchableOpacity onPress={handleSend} hitSlop={8} style={styles.sendBtn}>
+            <Ionicons name="send" size={16} color={inputText.trim() ? '#fff' : '#555'} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.likeBtn}
-          onPress={handleLike}
-          disabled={liking}
-          activeOpacity={0.7}>
+        <TouchableOpacity style={styles.heartBtn} onPress={handleHeart} activeOpacity={0.7}>
           <Text style={styles.heartIcon}>❤️</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Like count overlay (small, positioned near heart) */}
-      {likeCount > 0 && (
-        <View style={styles.likeCountBadge}>
-          <Text style={styles.likeCountText}>{likeCount}</Text>
-        </View>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    width,
-    height,
-    backgroundColor: '#000',
-  },
-  video: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  container: { width, height, backgroundColor: '#000' },
+  video: { ...StyleSheet.absoluteFillObject },
   topBar: {
     position: 'absolute',
     top: 60,
@@ -138,18 +131,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     gap: 8,
   },
-  avatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#888',
-  },
-  username: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-    flex: 1,
-  },
+  avatarPlaceholder: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#888' },
+  username: { color: '#fff', fontSize: 14, fontWeight: '500', flex: 1 },
   viewerCount: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -158,24 +141,6 @@ const styles = StyleSheet.create({
   },
   eyeIcon: { fontSize: 16 },
   viewerNum: { color: '#fff', fontSize: 14 },
-  followBtn: {
-    backgroundColor: '#FF4458',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 999,
-    opacity: 0.6, // disabled-looking
-  },
-  followText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  chatPlaceholder: {
-    position: 'absolute',
-    left: 16,
-    bottom: 90,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  chatPlaceholderText: { color: '#aaa', fontSize: 13 },
   bottomRow: {
     position: 'absolute',
     bottom: 30,
@@ -185,15 +150,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  inputPlaceholder: {
+  inputWrap: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 999,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingLeft: 16,
+    paddingRight: 8,
+    gap: 8,
   },
-  inputText: { color: '#888', fontSize: 14 },
-  likeBtn: {
+  input: { flex: 1, color: '#fff', fontSize: 14 },
+  sendBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heartBtn: {
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -202,14 +179,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heartIcon: { fontSize: 24 },
-  likeCountBadge: {
-    position: 'absolute',
-    bottom: 84,
-    right: 28,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  likeCountText: { color: '#fff', fontSize: 12, fontWeight: '600' },
 });
