@@ -24,6 +24,7 @@ import { useToast } from '@/lib/toast';
 import { useAuth } from '@/lib/auth';
 import type { MediaItem, Visibility } from '@/lib/types';
 
+import { FollowButton } from '@/features/social/components/follow-button';
 import { EditMetadataModal } from '../components/edit-metadata-modal';
 import { useMediaList } from '../hooks/use-media-list';
 import { EmptyState } from '../components/empty-state';
@@ -256,7 +257,9 @@ export function LibraryGrid({ username }: LibraryGridProps) {
                       Upload
                     </ThemedText>
                   </Pressable>
-                ) : null}
+                ) : (
+                  <FollowButton userId={ownerId ?? null} />
+                )}
               </View>
               {!isOnline ? (
                 <View style={[styles.offlineBanner, { backgroundColor: cardBg }]}>
