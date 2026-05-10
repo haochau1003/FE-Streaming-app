@@ -58,7 +58,7 @@ function prependMedia(
 
 export function SocketProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { currentUserId } = useAuth();
+  const { currentUserId, apiKey } = useAuth();
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
@@ -66,6 +66,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     const socket = io(config.SOCKET_URL, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
+      extraHeaders: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
     });
     socketRef.current = socket;
 
@@ -109,7 +110,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       socketRef.current = null;
       setConnected(false);
     };
-  }, [queryClient, currentUserId]);
+  }, [queryClient, currentUserId, apiKey]);
 
   const value = useMemo<SocketContextValue>(
     () => ({ socket: socketRef.current, connected }),

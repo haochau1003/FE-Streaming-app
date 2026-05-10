@@ -3,7 +3,7 @@ import { useSocket } from '@/lib/api/realtime';
 import { listComments, type Comment } from '@/lib/social';
 
 export function useComments(streamId: string) {
-  const { socket } = useSocket();
+  const { socket, connected } = useSocket();
   const [comments, setComments] = useState<Comment[]>([]);
 
   useEffect(() => {
@@ -11,6 +11,11 @@ export function useComments(streamId: string) {
       .then((res) => setComments(res.comments))
       .catch(() => {});
   }, [streamId]);
+
+  useEffect(() => {
+    if (!socket || !connected) return;
+    socket.emit('join_room', { stream_id: streamId });
+  }, [socket, streamId, connected]);
 
   useEffect(() => {
     if (!socket) return;

@@ -10,12 +10,16 @@ import {
   TouchableOpacity,
   ViewToken,
 } from 'react-native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { listStreams, Stream } from '@/lib/streams';
 import StreamPlayer from '@/components/stream-player';
 
-const { height } = Dimensions.get('window');
+const { height: windowHeight } = Dimensions.get('window');
 
 export default function StreamsScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
+  const playerHeight = windowHeight - tabBarHeight;
+
   const [streams, setStreams] = useState<Stream[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,11 +70,11 @@ export default function StreamsScreen() {
         data={streams}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
-          <StreamPlayer stream={item} isActive={index === activeIndex} />
+          <StreamPlayer stream={item} isActive={index === activeIndex} playerHeight={playerHeight} />
         )}
         pagingEnabled
         showsVerticalScrollIndicator={false}
-        snapToInterval={height}
+        snapToInterval={playerHeight}
         snapToAlignment="start"
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
@@ -84,7 +88,7 @@ export default function StreamsScreen() {
           />
         }
         ListEmptyComponent={
-          <View style={[styles.centered, { height }]}>
+          <View style={[styles.centered, { height: playerHeight }]}>
             <Text style={styles.emptyText}>No live streams right now</Text>
             <Text style={styles.emptyHint}>Tap refresh to check again</Text>
           </View>

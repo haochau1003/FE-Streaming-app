@@ -17,14 +17,15 @@ import { FloatingHearts } from '@/features/social/components/floating-hearts';
 import { FollowButton } from '@/features/social/components/follow-button';
 import { useComments } from '@/features/social/hooks/use-comments';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 interface StreamPlayerProps {
   stream: Stream;
   isActive: boolean;
+  playerHeight: number;
 }
 
-export default function StreamPlayer({ stream, isActive }: StreamPlayerProps) {
+export default function StreamPlayer({ stream, isActive, playerHeight }: StreamPlayerProps) {
   const [heartTrigger, setHeartTrigger] = useState(0);
   const [inputText, setInputText] = useState('');
 
@@ -54,7 +55,7 @@ export default function StreamPlayer({ stream, isActive }: StreamPlayerProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height: playerHeight }]}>
       <VideoView
         player={player}
         style={styles.video}
@@ -110,7 +111,7 @@ export default function StreamPlayer({ stream, isActive }: StreamPlayerProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { width, height, backgroundColor: '#000' },
+  container: { width, backgroundColor: '#000' },
   video: { ...StyleSheet.absoluteFillObject },
   topBar: {
     position: 'absolute',
