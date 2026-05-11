@@ -41,6 +41,7 @@ const MAPPING = {
   checkmark: 'check',
   'arrow.clockwise': 'refresh',
   'wifi.slash': 'wifi-off',
+  'rectangle.portrait.and.arrow.right': 'logout',
 } as IconMapping;
 
 /**
