@@ -5,9 +5,10 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 interface LikeEffectProps {
   trigger: number;
+  anchor?: { x: number; y: number };
 }
 
-export function LikeEffect({ trigger }: LikeEffectProps) {
+export function LikeEffect({ trigger, anchor }: LikeEffectProps) {
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -44,12 +45,20 @@ export function LikeEffect({ trigger }: LikeEffectProps) {
     outputRange: [40, 0, -80],
   });
 
+  // BADGE_W/H are matched to the styles below. We anchor by centering on (x,y).
+  const BADGE_W = 160;
+  const BADGE_H = 140;
+  const left = anchor ? anchor.x - BADGE_W / 2 : SCREEN_W / 2 - BADGE_W / 2;
+  const top = anchor ? anchor.y - BADGE_H / 2 : SCREEN_H * 0.4;
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Animated.View
         style={[
           styles.badge,
           {
+            left,
+            top,
             opacity,
             transform: [{ translateY }, { scale }],
           },
@@ -65,8 +74,6 @@ export function LikeEffect({ trigger }: LikeEffectProps) {
 const styles = StyleSheet.create({
   badge: {
     position: 'absolute',
-    top: SCREEN_H * 0.4,
-    left: SCREEN_W / 2 - 80,
     width: 160,
     alignItems: 'center',
     justifyContent: 'center',

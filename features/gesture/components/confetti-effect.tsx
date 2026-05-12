@@ -26,16 +26,21 @@ function makeParticles(): Particle[] {
 
 interface ConfettiEffectProps {
   trigger: number;
+  anchor?: { x: number; y: number };
 }
 
-export function ConfettiEffect({ trigger }: ConfettiEffectProps) {
+export function ConfettiEffect({ trigger, anchor }: ConfettiEffectProps) {
   const particlesRef = useRef<Particle[]>(makeParticles());
+  const anchorRef = useRef<{ x: number; y: number } | undefined>(undefined);
 
   useEffect(() => {
     if (trigger === 0) return;
+    anchorRef.current = anchor;
     // Re-seed positions on each trigger
     particlesRef.current.forEach((p) => {
-      p.x = Math.random() * SCREEN_W;
+      // When anchored, spawn in a tight cluster around the anchor x;
+      // when not, spread across the full screen width as before.
+      p.x = anchor ? anchor.x + (Math.random() - 0.5) * 30 : Math.random() * SCREEN_W;
       p.anim.setValue(0);
     });
 
@@ -74,7 +79,9 @@ export function ConfettiEffect({ trigger }: ConfettiEffectProps) {
                 {
                   translateY: p.anim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [-20, SCREEN_H + 40],
+                    outputRange: anchorRef.current
+                      ? [anchorRef.current.y, SCREEN_H + 40]
+                      : [-20, SCREEN_H + 40],
                   }),
                 },
                 {
