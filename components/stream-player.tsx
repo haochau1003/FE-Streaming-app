@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dimensions,
   StyleSheet,
@@ -16,6 +16,9 @@ import { CommentPanel } from '@/features/social/components/comment-panel';
 import { FloatingHearts } from '@/features/social/components/floating-hearts';
 import { FollowButton } from '@/features/social/components/follow-button';
 import { useComments } from '@/features/social/hooks/use-comments';
+import { ConfettiEffect } from '@/features/gesture/components/confetti-effect';
+import { MuteIndicator } from '@/features/gesture/components/mute-indicator';
+import { useSocket } from '@/lib/api/realtime';
 
 const { width } = Dimensions.get('window');
 
@@ -27,9 +30,39 @@ interface StreamPlayerProps {
 
 export default function StreamPlayer({ stream, isActive, playerHeight }: StreamPlayerProps) {
   const [heartTrigger, setHeartTrigger] = useState(0);
+  const [confettiTrigger, setConfettiTrigger] = useState(0);
+  const [muted, setMuted] = useState(false);
   const [inputText, setInputText] = useState('');
 
+  const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
+
+  // Listen for gesture-triggered stream state updates
+  useEffect(() => {
+    if (!socket || !isActive) return;
+
+    const handler = (data: { stream_id: string; effect?: string }) => {
+      if (data.stream_id !== stream.id) return;
+      switch (data.effect) {
+        case 'heart_burst':
+        case 'heart_flood':
+          setHeartTrigger((t) => t + 1);
+          break;
+        case 'confetti':
+        case 'fireworks':
+          setConfettiTrigger((t) => t + 1);
+          break;
+        case 'mute':
+          setMuted((m) => !m);
+          break;
+      }
+    };
+
+    socket.on('stream_state_update', handler);
+    return () => {
+      socket.off('stream_state_update', handler);
+    };
+  }, [socket, isActive, stream.id]);
 
   const player = useVideoPlayer(stream.playback_url ?? '', (p) => {
     p.loop = false;
@@ -82,8 +115,12 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
       {/* Live comment overlay */}
       <CommentPanel comments={comments} />
 
-      {/* Hearts float up from the heart button */}
+      {/* Hearts float up from the heart button or a gesture */}
       <FloatingHearts trigger={heartTrigger} />
+
+      {/* Gesture effects */}
+      <ConfettiEffect trigger={confettiTrigger} />
+      <MuteIndicator visible={muted} />
 
       {/* Bottom row: text input + heart button */}
       <View style={styles.bottomRow}>
