@@ -17,6 +17,7 @@ import { FloatingHearts } from '@/features/social/components/floating-hearts';
 import { FollowButton } from '@/features/social/components/follow-button';
 import { useComments } from '@/features/social/hooks/use-comments';
 import { ConfettiEffect } from '@/features/gesture/components/confetti-effect';
+import { LikeEffect } from '@/features/gesture/components/like-effect';
 import { MuteIndicator } from '@/features/gesture/components/mute-indicator';
 import { useSocket } from '@/lib/api/realtime';
 
@@ -31,22 +32,27 @@ interface StreamPlayerProps {
 export default function StreamPlayer({ stream, isActive, playerHeight }: StreamPlayerProps) {
   const [heartTrigger, setHeartTrigger] = useState(0);
   const [confettiTrigger, setConfettiTrigger] = useState(0);
+  const [likeTrigger, setLikeTrigger] = useState(0);
   const [muted, setMuted] = useState(false);
   const [inputText, setInputText] = useState('');
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
 
-  // Listen for gesture-triggered stream state updates
+  // Join the stream's Socket.IO room and listen for gesture-triggered updates
   useEffect(() => {
     if (!socket || !isActive) return;
 
     const handler = (data: { stream_id: string; effect?: string }) => {
+      console.log('[stream-player] stream_state_update', data);
       if (data.stream_id !== stream.id) return;
       switch (data.effect) {
         case 'heart_burst':
         case 'heart_flood':
           setHeartTrigger((t) => t + 1);
+          break;
+        case 'like':
+          setLikeTrigger((t) => t + 1);
           break;
         case 'confetti':
         case 'fireworks':
@@ -59,7 +65,14 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     };
 
     socket.on('stream_state_update', handler);
+    socket.on('room_joined', (d) => console.log('[stream-player] room_joined', d));
+    socket.on('error', (d) => console.log('[stream-player] socket error', d));
+    console.log('[stream-player] emitting join_room for', stream.id);
+    socket.emit('join_room', { stream_id: stream.id });
+
     return () => {
+      console.log('[stream-player] leaving room', stream.id);
+      socket.emit('leave_room', { stream_id: stream.id });
       socket.off('stream_state_update', handler);
     };
   }, [socket, isActive, stream.id]);
@@ -75,6 +88,11 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   } else {
     player.pause();
   }
+
+  // Apply gesture-triggered mute to the actual audio output
+  useEffect(() => {
+    player.muted = muted;
+  }, [player, muted]);
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -120,6 +138,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
 
       {/* Gesture effects */}
       <ConfettiEffect trigger={confettiTrigger} />
+      <LikeEffect trigger={likeTrigger} />
       <MuteIndicator visible={muted} />
 
       {/* Bottom row: text input + heart button */}
