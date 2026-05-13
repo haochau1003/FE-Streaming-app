@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   ScrollView,
   Animated,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+import { Ionicons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import {
   createStream,
@@ -20,11 +20,14 @@ import {
   Stream,
   StreamStatus,
 } from '@/lib/streams';
+import { CommentPanel } from '@/features/social/components/comment-panel';
+import { useComments } from '@/features/social/hooks/use-comments';
 
 type Phase = 'form' | 'waiting' | 'connecting' | 'live';
 
 const STATUS_DISPLAY: Record<StreamStatus, { label: string; color: string }> = {
   idle: { label: 'Waiting for broadcaster...', color: '#FFB800' },
+  connected: { label: 'Broadcaster connected, starting...', color: '#34C759' },
   active: { label: 'LIVE', color: '#FF4458' },
   disconnected: { label: 'Reconnecting...', color: '#FF9500' },
   ended: { label: 'Ended', color: '#666' },
@@ -49,6 +52,8 @@ export default function GoLiveScreen() {
   const durationRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [chatInput, setChatInput] = useState('');
+  const { comments, sendComment } = useComments(stream?.id ?? '');
 
   // Pulse animation for the LIVE dot
   useEffect(() => {
@@ -175,14 +180,14 @@ export default function GoLiveScreen() {
     ]);
   };
 
-  const copy = async (text: string, label: string) => {
-    await Clipboard.setStringAsync(text);
-    Alert.alert('Copied', `${label} copied to clipboard.`);
-  };
-
   // ===== Live phase =====
   if (phase === 'live' && stream && currentStream) {
     const isReconnecting = currentStream.status === 'disconnected';
+    const handleSendChat = () => {
+      if (!chatInput.trim()) return;
+      sendComment(chatInput.trim());
+      setChatInput('');
+    };
     return (
       <View style={styles.liveContainer}>
         <VideoView
@@ -192,7 +197,7 @@ export default function GoLiveScreen() {
           nativeControls={false}
         />
 
-        {/* Top overlay: LIVE badge + duration + likes */}
+        {/* Top overlay: status badges + end button */}
         <View style={styles.topOverlay}>
           <View style={styles.statusRow}>
             {isReconnecting ? (
@@ -215,13 +220,35 @@ export default function GoLiveScreen() {
               <Text style={styles.likeIcon}>❤️</Text>
               <Text style={styles.likeText}>{currentStream.like_count}</Text>
             </View>
+
+            <TouchableOpacity style={styles.endBtnTop} onPress={handleEnd}>
+              <Text style={styles.endBtnTopText}>End</Text>
+            </TouchableOpacity>
           </View>
           <Text style={styles.liveTitle}>{stream.title}</Text>
         </View>
 
-        <TouchableOpacity style={styles.endBtn} onPress={handleEnd}>
-          <Text style={styles.endBtnText}>End Stream</Text>
-        </TouchableOpacity>
+        {/* Floating comments */}
+        <CommentPanel comments={comments} />
+
+        {/* Chat input */}
+        <View style={styles.chatRow}>
+          <View style={styles.chatInputWrap}>
+            <TextInput
+              style={styles.chatInput}
+              value={chatInput}
+              onChangeText={setChatInput}
+              placeholder="Say something..."
+              placeholderTextColor="#888"
+              onSubmitEditing={handleSendChat}
+              returnKeyType="send"
+              maxLength={500}
+            />
+            <TouchableOpacity onPress={handleSendChat} hitSlop={8} style={styles.sendBtn}>
+              <Ionicons name="send" size={16} color={chatInput.trim() ? '#fff' : '#555'} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     );
   }
@@ -242,57 +269,9 @@ export default function GoLiveScreen() {
         </View>
         <Text style={styles.subheading}>{stream.title}</Text>
 
-        <Text style={styles.instructionsTitle}>To start broadcasting:</Text>
-        <Text style={styles.instructions}>
-          1. Open OBS Studio (or Larix Broadcaster on mobile){'\n'}
-          2. Configure stream settings:{'\n'}
-          {'   '}• Service: Custom{'\n'}
-          {'   '}• Server: paste the RTMP URL below{'\n'}
-          {'   '}• Stream Key: paste the key below{'\n'}
-          3. Click Start Streaming{'\n'}
-          4. This screen will switch to your live preview automatically.
+        <Text style={styles.hint}>
+          Find your RTMP URL and combined URL in Settings → Broadcasting Guide.
         </Text>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>RTMP Server URL</Text>
-          <TouchableOpacity
-            style={styles.copyBox}
-            onPress={() => copy(stream.broadcast.rtmp_url, 'RTMP URL')}>
-            <Text style={styles.copyText} numberOfLines={1}>
-              {stream.broadcast.rtmp_url}
-            </Text>
-            <Text style={styles.copyHint}>Tap to copy</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Stream Key (keep this secret)</Text>
-          <TouchableOpacity
-            style={styles.copyBox}
-            onPress={() => copy(stream.broadcast.stream_key, 'Stream key')}>
-            <Text style={styles.copyText} numberOfLines={1}>
-              {stream.broadcast.stream_key}
-            </Text>
-            <Text style={styles.copyHint}>Tap to copy</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Combined URL (for Larix Broadcaster)</Text>
-          <TouchableOpacity
-            style={styles.copyBox}
-            onPress={() =>
-              copy(
-                `${stream.broadcast.rtmp_url}/${stream.broadcast.stream_key}`,
-                'Combined URL',
-              )
-            }>
-            <Text style={styles.copyText} numberOfLines={1}>
-              {stream.broadcast.rtmp_url}/{stream.broadcast.stream_key}
-            </Text>
-            <Text style={styles.copyHint}>Tap to copy (use this in Larix)</Text>
-          </TouchableOpacity>
-        </View>
 
         <TouchableOpacity style={styles.cancelBtn} onPress={handleEnd}>
           <Text style={styles.cancelBtnText}>Cancel Stream</Text>
@@ -355,9 +334,6 @@ const styles = StyleSheet.create({
   },
   statusText: { fontSize: 16, fontWeight: '600' },
 
-  instructionsTitle: { color: '#fff', fontSize: 16, fontWeight: '600', marginTop: 16 },
-  instructions: { color: '#ccc', fontSize: 14, lineHeight: 22, marginTop: 8, marginBottom: 24 },
-
   field: { marginBottom: 20 },
   label: { color: '#aaa', fontSize: 13, marginBottom: 8 },
   input: {
@@ -391,6 +367,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   cancelBtnText: { color: '#aaa', fontSize: 14 },
+  hint: { color: '#555', fontSize: 13, textAlign: 'center', marginVertical: 16 },
   btnDisabled: { opacity: 0.5 },
 
   // Live phase
@@ -459,4 +436,37 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   endBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  endBtnTop: {
+    marginLeft: 'auto',
+    backgroundColor: '#FF4458',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  endBtnTopText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  chatRow: {
+    position: 'absolute',
+    bottom: 30,
+    left: 16,
+    right: 16,
+  },
+  chatInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingLeft: 16,
+    paddingRight: 8,
+    gap: 8,
+  },
+  chatInput: { flex: 1, color: '#fff', fontSize: 14 },
+  sendBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

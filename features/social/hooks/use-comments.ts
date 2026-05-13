@@ -7,13 +7,14 @@ export function useComments(streamId: string) {
   const [comments, setComments] = useState<Comment[]>([]);
 
   useEffect(() => {
+    if (!streamId) return;
     listComments(streamId, { limit: 50 })
       .then((res) => setComments(res.comments))
       .catch(() => {});
   }, [streamId]);
 
   useEffect(() => {
-    if (!socket || !connected) return;
+    if (!socket || !connected || !streamId) return;
     socket.emit('join_room', { stream_id: streamId });
   }, [socket, streamId, connected]);
 

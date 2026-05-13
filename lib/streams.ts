@@ -1,8 +1,9 @@
 import { config } from './config';
+import { readApiKeyFromMemory } from './auth';
 
 // ===== Types matching Flask response shapes =====
 
-export type StreamStatus = 'idle' | 'active' | 'disconnected' | 'ended';
+export type StreamStatus = 'idle' | 'connected' | 'active' | 'disconnected' | 'ended';
 
 export interface Stream {
   id: string;
@@ -43,10 +44,12 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${config.API_BASE}${path}`;
+  const apiKey = readApiKeyFromMemory();
   const res = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       ...options.headers,
     },
   });

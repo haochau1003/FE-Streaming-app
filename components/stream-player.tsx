@@ -89,13 +89,8 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     };
 
     socket.on('stream_state_update', handler);
-    socket.on('room_joined', (d) => console.log('[stream-player] room_joined', d));
-    socket.on('error', (d) => console.log('[stream-player] socket error', d));
-    console.log('[stream-player] emitting join_room for', stream.id);
-    socket.emit('join_room', { stream_id: stream.id });
 
     return () => {
-      console.log('[stream-player] leaving room', stream.id);
       socket.emit('leave_room', { stream_id: stream.id });
       socket.off('stream_state_update', handler);
     };
