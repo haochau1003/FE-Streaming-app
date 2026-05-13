@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dimensions,
   StyleSheet,
@@ -16,6 +16,19 @@ import { CommentPanel } from '@/features/social/components/comment-panel';
 import { FloatingHearts } from '@/features/social/components/floating-hearts';
 import { FollowButton } from '@/features/social/components/follow-button';
 import { useComments } from '@/features/social/hooks/use-comments';
+import { ConfettiEffect } from '@/features/gesture/components/confetti-effect';
+import { HeartBurstEffect } from '@/features/gesture/components/heart-burst-effect';
+import { LikeEffect } from '@/features/gesture/components/like-effect';
+import { MuteIndicator } from '@/features/gesture/components/mute-indicator';
+import { mapCoverCoords } from '@/features/gesture/lib/cover-coords';
+import { useSocket } from '@/lib/api/realtime';
+
+const WEBCAM_ASPECT = 16 / 9;
+
+interface EffectState {
+  trigger: number;
+  anchor?: { x: number; y: number };
+}
 
 const { width } = Dimensions.get('window');
 
@@ -27,9 +40,66 @@ interface StreamPlayerProps {
 
 export default function StreamPlayer({ stream, isActive, playerHeight }: StreamPlayerProps) {
   const [heartTrigger, setHeartTrigger] = useState(0);
+  const [heartBurstState, setHeartBurstState] = useState<EffectState>({ trigger: 0 });
+  const [confettiState, setConfettiState] = useState<EffectState>({ trigger: 0 });
+  const [likeState, setLikeState] = useState<EffectState>({ trigger: 0 });
+  const [muted, setMuted] = useState(false);
   const [inputText, setInputText] = useState('');
 
+  const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
+
+  // Join the stream's Socket.IO room and listen for gesture-triggered updates
+  useEffect(() => {
+    if (!socket || !isActive) return;
+
+    const handler = (data: {
+      stream_id: string;
+      effect?: string;
+      anchor?: { x: number; y: number };
+    }) => {
+      console.log('[stream-player] stream_state_update', data);
+      if (data.stream_id !== stream.id) return;
+
+      // Map normalized webcam coords through the VideoView's cover crop.
+      const anchorPx = data.anchor
+        ? mapCoverCoords(data.anchor.x, data.anchor.y, WEBCAM_ASPECT, width, playerHeight)
+        : undefined;
+
+      switch (data.effect) {
+        case 'heart_burst':
+          setHeartBurstState((s) => ({ trigger: s.trigger + 1, anchor: anchorPx }));
+          break;
+        case 'heart_flood':
+          // Heart flood = the "like_stream" legacy fallback — keep the existing
+          // bottom-right floating hearts behavior (no anchor support).
+          setHeartTrigger((t) => t + 1);
+          break;
+        case 'like':
+          setLikeState((s) => ({ trigger: s.trigger + 1, anchor: anchorPx }));
+          break;
+        case 'confetti':
+        case 'fireworks':
+          setConfettiState((s) => ({ trigger: s.trigger + 1, anchor: anchorPx }));
+          break;
+        case 'mute':
+          setMuted((m) => !m);
+          break;
+      }
+    };
+
+    socket.on('stream_state_update', handler);
+    socket.on('room_joined', (d) => console.log('[stream-player] room_joined', d));
+    socket.on('error', (d) => console.log('[stream-player] socket error', d));
+    console.log('[stream-player] emitting join_room for', stream.id);
+    socket.emit('join_room', { stream_id: stream.id });
+
+    return () => {
+      console.log('[stream-player] leaving room', stream.id);
+      socket.emit('leave_room', { stream_id: stream.id });
+      socket.off('stream_state_update', handler);
+    };
+  }, [socket, isActive, stream.id]);
 
   const player = useVideoPlayer(stream.playback_url ?? '', (p) => {
     p.loop = false;
@@ -42,6 +112,11 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   } else {
     player.pause();
   }
+
+  // Apply gesture-triggered mute to the actual audio output
+  useEffect(() => {
+    player.muted = muted;
+  }, [player, muted]);
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -82,8 +157,14 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
       {/* Live comment overlay */}
       <CommentPanel comments={comments} />
 
-      {/* Hearts float up from the heart button */}
+      {/* Hearts float up from the heart button or a gesture */}
       <FloatingHearts trigger={heartTrigger} />
+
+      {/* Gesture effects */}
+      <ConfettiEffect trigger={confettiState.trigger} anchor={confettiState.anchor} />
+      <HeartBurstEffect trigger={heartBurstState.trigger} anchor={heartBurstState.anchor} />
+      <LikeEffect trigger={likeState.trigger} anchor={likeState.anchor} />
+      <MuteIndicator visible={muted} />
 
       {/* Bottom row: text input + heart button */}
       <View style={styles.bottomRow}>
