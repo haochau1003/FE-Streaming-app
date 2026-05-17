@@ -65,6 +65,19 @@ export default function GoLiveScreen() {
         the camera and microphone, then come back here to watch.
       </Text>
 
+      <TouchableOpacity
+        style={styles.gestureLink}
+        // Cast: expo-router auto-generates `/gesture-library` into its
+        // typed-routes union the next time `npx expo start` runs. Until
+        // then TS doesn't know the literal exists.
+        onPress={() => router.push('/gesture-library' as never)}
+      >
+        <Text style={styles.gestureLinkText}>Gesture Library ›</Text>
+        <Text style={styles.gestureLinkSubtext}>
+          Remap built-in gestures, assign actions to your custom recordings.
+        </Text>
+      </TouchableOpacity>
+
       {error ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>Backend unreachable: {error}</Text>
@@ -149,4 +162,13 @@ const styles = StyleSheet.create({
   streamTitle: { color: '#fff', fontSize: 15, fontWeight: '500' },
   streamMeta: { color: '#888', fontSize: 12, marginTop: 2 },
   chevron: { color: '#666', fontSize: 24 },
+
+  gestureLink: {
+    backgroundColor: '#1a1a1a',
+    padding: 14,
+    borderRadius: 10,
+    marginTop: 20,
+  },
+  gestureLinkText: { color: '#fff', fontSize: 15, fontWeight: '500' },
+  gestureLinkSubtext: { color: '#888', fontSize: 12, marginTop: 4 },
 });
