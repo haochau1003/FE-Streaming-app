@@ -1,20 +1,25 @@
-# FE-Streaming-app — viewer-only app for the VSR livestream
+# FE-Streaming-app — viewer app for the VSR livestream
 
-React Native / Expo app for watching live streams + chatting. The
-streamer side runs as a Python process on a laptop and is part of the
-backend repo ([../Streaming-App/](../Streaming-App/)). This app is
-**viewer-only**: pick a stream, swipe between them, chat.
+React Native / Expo app for **watching live streams + chatting**. The
+streamer side (camera capture, gesture detection, encoding) runs as a
+Python process on a laptop and is part of the backend repo
+([../Streaming-App/](../Streaming-App/)). This app is viewer-only.
 
 Three platform targets from one codebase:
 - **iOS** — custom Expo dev client (TestFlight or ad-hoc)
 - **Android** — custom Expo dev client (APK sideload)
 - **Web** — any modern browser, no install needed
 
-The custom dev client is required because [LiveKit's React Native
-SDK](https://docs.livekit.io/realtime/quickstarts/react-native/)
-needs native WebRTC modules that Expo Go does not ship. Once you
-install the dev client *once*, the daily QR-scan workflow is identical
-to Expo Go.
+> **Custom dev client required** for mobile. [LiveKit's React Native
+> SDK](https://docs.livekit.io/realtime/quickstarts/react-native/)
+> needs native WebRTC modules that Expo Go does not ship. Once you
+> install the dev client *once*, the daily QR-scan workflow is
+> identical to Expo Go. Web has WebRTC built in, no extra build step.
+
+> **Setting up for the first time?** The end-to-end demo (backend +
+> broadcaster + FE) is documented in
+> [../Streaming-App/SETUP.md](../Streaming-App/SETUP.md) — start there.
+> This README is the FE-specific reference.
 
 ---
 
@@ -48,12 +53,12 @@ eas build --profile development --platform android
 ```
 
 You'll get an `.apk` install link. On the phone:
-1. Settings → enable "Install from unknown sources" for your browser
-2. Open the link, install the APK
-3. Done — the dev client app is now on the home screen
+1. Settings → enable "Install from unknown sources" for your browser.
+2. Open the link, install the APK.
+3. Done — the dev client app is now on the home screen.
 
 After install, you never touch EAS again. Just run `npx expo start`
-on your laptop, scan the QR with the dev client.
+on your laptop and scan the QR with the dev client.
 
 ### iOS
 
@@ -93,31 +98,23 @@ Serves the app at `http://<your-laptop-LAN-IP>:8081`. Any modern
 browser. Easiest demo path for lecturers — share the URL and they
 watch immediately.
 
-To produce a static bundle (e.g. for serving from a CDN or behind a
-reverse proxy):
-
-```bash
-npx expo export --platform web
-# Output in ./dist/ — serve with any static file server
-```
-
 ---
 
 ## Environment
 
 `app.config.ts` reads these env vars (or `.env` via dotenv) at build
-time:
+time. Copy `.env.example` → `.env` and fill in:
 
 ```env
 API_BASE=http://192.168.1.42:5001       # Backend REST URL (LAN IP for phone testing)
 SOCKET_URL=http://192.168.1.42:5001     # defaults to API_BASE
 ```
 
-For **web** in dev, the browser already shares the same host as the
-backend, so `http://localhost:5001` works.
+For **web** in dev, the browser shares the host with the backend, so
+`http://localhost:5001` works.
 
 For **phone** dev clients, the backend MUST be reachable from the
-phone, so use the host laptop's LAN IP (NOT localhost) and make sure
+phone, so use the host laptop's LAN IP (NOT `localhost`) and make sure
 both devices are on the same Wi-Fi.
 
 ---
@@ -125,21 +122,31 @@ both devices are on the same Wi-Fi.
 ## File layout (high level)
 
 ```
-app/                          # expo-router routes
+app/                          expo-router routes
+  login.tsx                   login screen
   (tabs)/
-    streams.tsx               # TikTok-style swipe feed of live streams
-    go-live.tsx               # status panel (broadcasting itself happens on the laptop)
-    content-library/          # VOD uploads (Member 1's surface)
-features/
-  social/                     # chat panel + heart button + follow
-  gesture/                    # legacy overlay components (now used minimally)
-  content-library/            # VOD screens
+    _layout.tsx               tab bar config
+    index.tsx                 redirect to /streams
+    streams.tsx               TikTok-style swipe feed of live streams
+    profile/                  user profiles
+    settings.tsx              api-key / owner-id config
+  upload.tsx                  VOD upload screen
+  library/[id].tsx            single-item content library viewer
 components/
-  stream-player.tsx           # default — web variant (livekit-client)
-  stream-player.native.tsx    # iOS/Android (@livekit/react-native)
+  stream-player.tsx           web variant (livekit-client + plain <video>)
+  stream-player.native.tsx    iOS/Android (@livekit/react-native)
+  comment-panel.tsx           overlay chat
+  floating-hearts.tsx         heart-button animation
+features/
+  social/                     chat + heart + follow hooks/components
+  content-library/            VOD list + uploader + media renderer
 lib/
-  streams.ts                  # backend REST client
-  api/realtime.tsx            # Socket.IO client wiring
+  api/
+    client.ts                 fetch wrapper with auth
+    realtime.tsx              Socket.IO context provider
+  auth.tsx                    auth context (api_key in storage)
+  config.ts                   reads app.config extras
+  streams.ts                  backend REST client for streams
 ```
 
 ---
