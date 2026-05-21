@@ -55,6 +55,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="streams"
+        options={{
+          title: 'Streams',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="play.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="explore"
         options={{
           title: 'Explore',
