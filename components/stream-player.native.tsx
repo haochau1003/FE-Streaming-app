@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dimensions,
   StyleSheet,
@@ -9,13 +9,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  ConnectionState,
-  RemoteTrack,
-  RemoteTrackPublication,
-  Room,
-  RoomEvent,
-  Track,
-} from 'livekit-client';
+  LiveKitRoom,
+  useTracks,
+  VideoTrack,
+  registerGlobals,
+} from '@livekit/react-native';
+import { Track } from 'livekit-client';
 
 import { Stream, fetchViewerToken } from '@/lib/streams';
 import { CommentPanel } from '@/features/social/components/comment-panel';
@@ -23,6 +22,10 @@ import { FloatingHearts } from '@/features/social/components/floating-hearts';
 import { FollowButton } from '@/features/social/components/follow-button';
 import { useComments } from '@/features/social/hooks/use-comments';
 import { useSocket } from '@/lib/api/realtime';
+
+// @livekit/react-native needs to install WebRTC's global types into the JS
+// runtime. Calling registerGlobals once at module load is idempotent.
+registerGlobals();
 
 const { width } = Dimensions.get('window');
 
@@ -33,99 +36,59 @@ interface StreamPlayerProps {
 }
 
 /**
- * Web variant of StreamPlayer.
- *
- * Same component name + props as the native variant; Expo/Metro picks the
- * `.web.tsx` file automatically. Renders the LiveKit camera track into a
- * plain HTML <video> element via livekit-client's attach() helper.
- *
- * Why a separate file: @livekit/react-native cannot run in browsers (it
- * wraps react-native-webrtc), and livekit-client cannot run in RN (it
- * uses browser-only APIs). Same protocol, two SDKs.
+ * Inner component rendered inside <LiveKitRoom>. Uses LiveKit hooks to
+ * pick the broadcaster's camera track. Kept separate so the hooks have
+ * the room context available.
  */
+function PublishedVideo({ playerHeight }: { playerHeight: number }) {
+  const tracks = useTracks([Track.Source.Camera], { onlySubscribed: true });
+  const cameraTrack = tracks[0];
+
+  if (!cameraTrack) {
+    return (
+      <View style={[styles.video, styles.placeholder, { height: playerHeight }]}>
+        <Text style={styles.placeholderText}>Connecting…</Text>
+      </View>
+    );
+  }
+  return (
+    <VideoTrack
+      trackRef={cameraTrack}
+      style={StyleSheet.flatten([styles.video, { height: playerHeight }])}
+      objectFit="cover"
+    />
+  );
+}
+
 export default function StreamPlayer({ stream, isActive, playerHeight }: StreamPlayerProps) {
   const [heartTrigger, setHeartTrigger] = useState(0);
   const [inputText, setInputText] = useState('');
-  const [status, setStatus] = useState<string>('idle');
-
-  const videoElRef = useRef<HTMLVideoElement | null>(null);
-  const roomRef = useRef<Room | null>(null);
-  const attachedTrackRef = useRef<RemoteTrack | null>(null);
+  const [viewerToken, setViewerToken] = useState<string | null>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
 
-  // Connect to LiveKit only while this stream is the active swipe pane.
+  // Lazily mint a viewer token only for streams that are actually visible.
+  // Off-screen streams in the swipe feed don't waste a JWT slot.
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || viewerToken) return;
     let cancelled = false;
-
-    const run = async () => {
-      try {
-        setStatus('Loading token…');
-        const tokenResp = await fetchViewerToken(stream.id);
-        if (cancelled) return;
-
-        const room = new Room({ adaptiveStream: true, dynacast: true });
-        roomRef.current = room;
-
-        room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-          if (track.kind === Track.Kind.Video && videoElRef.current) {
-            track.attach(videoElRef.current);
-            attachedTrackRef.current = track;
-            setStatus('connected');
-          }
-        });
-        room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-          track.detach();
-          if (attachedTrackRef.current === track) {
-            attachedTrackRef.current = null;
-          }
-        });
-        room.on(RoomEvent.ConnectionStateChanged, (s: ConnectionState) => {
-          if (s === ConnectionState.Disconnected) setStatus('disconnected');
-        });
-
-        setStatus('Connecting…');
-        await room.connect(tokenResp.livekit_url, tokenResp.viewer_token);
-        if (cancelled) {
-          room.disconnect();
-          return;
-        }
-        // If the publisher was already in the room, their tracks may be
-        // available without firing TrackSubscribed again. Walk the participants
-        // to pick up any video track we missed.
-        room.remoteParticipants.forEach((p) => {
-          p.trackPublications.forEach((pub: RemoteTrackPublication) => {
-            if (
-              pub.track &&
-              pub.track.kind === Track.Kind.Video &&
-              videoElRef.current
-            ) {
-              pub.track.attach(videoElRef.current);
-              attachedTrackRef.current = pub.track;
-              setStatus('connected');
-            }
-          });
-        });
-      } catch (err) {
-        if (!cancelled) setStatus(`error: ${String(err).slice(0, 80)}`);
-      }
-    };
-
-    run();
+    fetchViewerToken(stream.id)
+      .then((res) => {
+        if (!cancelled) setViewerToken(res.viewer_token);
+      })
+      .catch((err) => {
+        if (!cancelled) setTokenError(String(err));
+      });
     return () => {
       cancelled = true;
-      if (attachedTrackRef.current && videoElRef.current) {
-        try { attachedTrackRef.current.detach(videoElRef.current); } catch {}
-      }
-      attachedTrackRef.current = null;
-      const r = roomRef.current;
-      roomRef.current = null;
-      r?.disconnect();
     };
-  }, [isActive, stream.id]);
+  }, [isActive, stream.id, viewerToken]);
 
+  // Join the Socket.IO room for chat + control events (mute/end_stream).
+  // Visual gesture effects are no longer broadcast — they're burned into
+  // the published video. See docs/decisions/002-broadcaster-burn-in-compositing.md.
   useEffect(() => {
     if (!socket || !isActive) return;
     socket.emit('join_room', { stream_id: stream.id });
@@ -145,23 +108,30 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     setHeartTrigger((t) => t + 1);
   };
 
+  const serverUrl = stream.livekit_url;
+  const connect = Boolean(isActive && viewerToken && serverUrl);
+
   return (
     <View style={[styles.container, { height: playerHeight }]}>
-      {/* Plain DOM <video> wrapped in a React Native View. react-native-web
-          forwards the ref to the underlying element when used like this. */}
-      <video
-        ref={videoElRef as any}
-        style={styles.videoEl as any}
-        autoPlay
-        playsInline
-        muted={false}
-      />
-      {status !== 'connected' ? (
-        <View style={[styles.placeholder, { height: playerHeight }]}>
-          <Text style={styles.placeholderText}>{status}</Text>
+      {connect && viewerToken ? (
+        <LiveKitRoom
+          serverUrl={serverUrl}
+          token={viewerToken}
+          connect
+          audio={false}
+          video={false}
+        >
+          <PublishedVideo playerHeight={playerHeight} />
+        </LiveKitRoom>
+      ) : (
+        <View style={[styles.video, styles.placeholder, { height: playerHeight }]}>
+          <Text style={styles.placeholderText}>
+            {tokenError ?? (isActive ? 'Loading…' : 'Paused')}
+          </Text>
         </View>
-      ) : null}
+      )}
 
+      {/* Top bar: avatar pill + viewer count + follow */}
       <View style={styles.topBar}>
         <View style={styles.streamerPill}>
           <View style={styles.avatarPlaceholder} />
@@ -179,6 +149,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
       <CommentPanel comments={comments} />
       <FloatingHearts trigger={heartTrigger} />
 
+      {/* Bottom row: text input + heart button */}
       <View style={styles.bottomRow}>
         <View style={styles.inputWrap}>
           <TextInput
@@ -205,17 +176,8 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
 
 const styles = StyleSheet.create({
   container: { width, backgroundColor: '#000' },
-  videoEl: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    backgroundColor: '#000',
-  },
+  video: { ...StyleSheet.absoluteFillObject },
   placeholder: {
-    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#111',

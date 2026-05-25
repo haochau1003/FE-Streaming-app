@@ -3,7 +3,7 @@ import { useSocket } from '@/lib/api/realtime';
 import { listComments, type Comment } from '@/lib/social';
 
 export function useComments(streamId: string) {
-  const { socket, connected } = useSocket();
+  const { socket } = useSocket();
   const [comments, setComments] = useState<Comment[]>([]);
 
   useEffect(() => {
@@ -12,10 +12,9 @@ export function useComments(streamId: string) {
       .catch(() => {});
   }, [streamId]);
 
-  useEffect(() => {
-    if (!socket || !connected) return;
-    socket.emit('join_room', { stream_id: streamId });
-  }, [socket, streamId, connected]);
+  // Room membership is owned by stream-player (which also handles
+  // leave_room on unmount). Emitting join_room here too would double the
+  // backend's `viewer_joined` broadcast and inflate dashboard viewer counts.
 
   useEffect(() => {
     if (!socket) return;

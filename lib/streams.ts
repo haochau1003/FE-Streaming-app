@@ -2,7 +2,7 @@ import { config } from './config';
 
 // ===== Types matching Flask response shapes =====
 
-export type StreamStatus = 'idle' | 'active' | 'disconnected' | 'ended';
+export type StreamStatus = 'idle' | 'connected' | 'active' | 'disconnected' | 'ended';
 
 export interface Stream {
   id: string;
@@ -10,20 +10,31 @@ export interface Stream {
   description: string;
   privacy: 'public' | 'private' | 'unlisted';
   status: StreamStatus;
-  playback_url: string | null;
+  // LiveKit WebSocket URL the viewer should connect to.
+  livekit_url: string;
+  // LiveKit room name (equal to stream.id; convenience field).
+  room_name: string;
   like_count: number;
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
 }
 
-export interface BroadcastCredentials {
-  rtmp_url: string;
-  stream_key: string;
+/**
+ * Response from `POST /api/v1/streams`. The publisher_token is sensitive —
+ * the laptop broadcaster receives it once on stream creation and never
+ * exposes it again. Viewers should NEVER see this; they use `fetchViewerToken`.
+ */
+export interface CreatedStreamResponse {
+  stream: Stream;
+  publisher_token: string;
+  livekit_url: string;
 }
 
-export interface CreatedStream extends Stream {
-  broadcast: BroadcastCredentials;
+export interface ViewerTokenResponse {
+  viewer_token: string;
+  livekit_url: string;
+  room_name: string;
 }
 
 // ===== Errors =====
@@ -84,7 +95,7 @@ export async function createStream(input: {
   title?: string;
   description?: string;
   privacy?: 'public' | 'private' | 'unlisted';
-}): Promise<{ stream: CreatedStream }> {
+}): Promise<CreatedStreamResponse> {
   return request('/api/v1/streams', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -99,4 +110,19 @@ export async function endStream(
 
 export async function likeStream(streamId: string): Promise<{ like_count: number }> {
   return request(`/api/v1/streams/${streamId}/like`, { method: 'POST' });
+}
+
+/**
+ * Mint a subscriber-only LiveKit token for a viewer of a specific stream.
+ * Optional identity / display_name body — backend derives one from
+ * request.remote_addr when omitted. See app/api/stream_routes.py.
+ */
+export async function fetchViewerToken(
+  streamId: string,
+  input: { identity?: string; display_name?: string } = {},
+): Promise<ViewerTokenResponse> {
+  return request(`/api/v1/streams/${streamId}/viewer-token`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }

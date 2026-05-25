@@ -4,6 +4,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: config.name ?? 'streaming-app',
   slug: config.slug ?? 'streaming-app',
+  // LiveKit needs a custom dev client (WebRTC native modules can't run in Expo Go).
+  // @config-plugins/react-native-webrtc wires the iOS/Android camera+mic permissions;
+  // @livekit/react-native-expo-plugin registers the LiveKit native modules.
+  plugins: [
+    ...(config.plugins ?? []),
+    '@config-plugins/react-native-webrtc',
+    '@livekit/react-native-expo-plugin',
+  ],
   extra: {
     ...(config.extra ?? {}),
     API_BASE: process.env.API_BASE ?? 'http://localhost:5001',

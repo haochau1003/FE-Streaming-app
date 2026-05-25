@@ -5,7 +5,6 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { io, Socket } from 'socket.io-client';
@@ -60,15 +59,24 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { currentUserId, apiKey } = useAuth();
   const [connected, setConnected] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
+  // Hold the socket in state (not a ref) so the context value re-renders
+  // when it's created. With a ref, useMemo couldn't track it as a dep, and
+  // consumers calling sendComment before `connected` flipped true would
+  // read `socket: null` and silently drop the message.
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     const socket = io(config.SOCKET_URL, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
-      extraHeaders: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+      // Use `auth` (handshake payload) not `extraHeaders`. Browsers silently
+      // drop custom headers on websocket transport, so extraHeaders only ever
+      // reached the server during polling fallback. `auth` works on every
+      // transport. The server reads it in handle_connect and stashes the
+      // api_key per-sid.
+      auth: apiKey ? { token: apiKey } : {},
     });
-    socketRef.current = socket;
+    setSocket(socket);
 
     socket.on('connect', () => {
       setConnected(true);
@@ -80,6 +88,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     });
     socket.on('connect_error', (err) => {
       log.warn('socket connect_error', err.message);
+    });
+    socket.on('error', (payload) => {
+      // Server-side validation/auth rejections come back as an 'error' event.
+      // Surfacing them stops bugs like "comments silently dropped" from hiding.
+      log.warn('socket server error', payload);
     });
 
     socket.on('media_uploaded', (event: MediaUploadedEvent) => {
@@ -107,14 +120,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     return () => {
       socket.removeAllListeners();
       socket.disconnect();
-      socketRef.current = null;
+      setSocket(null);
       setConnected(false);
     };
   }, [queryClient, currentUserId, apiKey]);
 
   const value = useMemo<SocketContextValue>(
-    () => ({ socket: socketRef.current, connected }),
-    [connected],
+    () => ({ socket, connected }),
+    [socket, connected],
   );
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
