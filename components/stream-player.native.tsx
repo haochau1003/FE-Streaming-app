@@ -65,15 +65,22 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const [inputText, setInputText] = useState('');
   const [viewerToken, setViewerToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
+  // Latches true on first activation and never goes back to false.
+  // This keeps <LiveKitRoom connect> true even when isActive flips false,
+  // so the stream stays connected when the user swipes away and back.
+  const [hasActivated, setHasActivated] = useState(false);
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
 
-  // Fetch viewer token on first activation and keep it for the component lifetime.
-  // <LiveKitRoom connect={connect}> handles reconnection internally; we don't
-  // need to clear the token when the user swipes away.
+  // Latch hasActivated on first isActive=true.
   useEffect(() => {
-    if (!isActive || viewerToken) return;
+    if (isActive && !hasActivated) setHasActivated(true);
+  }, [isActive, hasActivated]);
+
+  // Fetch the viewer token once, on first activation.
+  useEffect(() => {
+    if (!hasActivated || viewerToken) return;
     let cancelled = false;
     fetchViewerToken(stream.id)
       .then((res) => {
@@ -85,11 +92,9 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     return () => {
       cancelled = true;
     };
-  }, [isActive, stream.id, viewerToken]);
+  }, [hasActivated, stream.id, viewerToken]);
 
   // Join the Socket.IO room for chat + control events (mute/end_stream).
-  // Visual gesture effects are no longer broadcast — they're burned into
-  // the published video. See docs/decisions/002-broadcaster-burn-in-compositing.md.
   useEffect(() => {
     if (!socket || !isActive) return;
     socket.emit('join_room', { stream_id: stream.id });
@@ -110,7 +115,8 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   };
 
   const serverUrl = stream.livekit_url;
-  const connect = Boolean(isActive && viewerToken && serverUrl);
+  // Stay connected once activated; only gate on token availability.
+  const connect = Boolean(hasActivated && viewerToken && serverUrl);
 
   return (
     <View style={[styles.container, { height: playerHeight }]}>

@@ -55,27 +55,28 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
 
-  // Connect on first activation, then stay connected for the lifetime of this
-  // component mount. Disconnecting on every isActive=false → isActive=true cycle
-  // causes a "disconnected" flash because the Room emits ConnectionStateChanged
-  // after cleanup, racing with the new connection's status updates.
+  // Connect on first activation. Once connected the room stays alive for the
+  // full component lifetime — we never disconnect when isActive flips false.
+  // Event handlers guard with `roomRef.current !== room` so that only the
+  // current room can update state; a stale room (after unmount cleanup) is
+  // silently ignored. This avoids the "disconnected" flash that occurs when
+  // a cancelled-flag approach is used and the flag is set while the room is
+  // still alive.
   useEffect(() => {
-    // Only connect the first time this stream becomes visible.
     if (!isActive || roomRef.current !== null) return;
-
-    let cancelled = false;
 
     const run = async () => {
       try {
         setStatus('Loading token…');
         const tokenResp = await fetchViewerToken(stream.id);
-        if (cancelled) return;
+        // If unmount ran between the await and here, bail.
+        if (roomRef.current !== null) return;
 
         const room = new Room({ adaptiveStream: true, dynacast: true });
         roomRef.current = room;
 
         room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-          if (cancelled) return;
+          if (roomRef.current !== room) return;
           if (track.kind === Track.Kind.Video && videoElRef.current) {
             track.attach(videoElRef.current);
             attachedTrackRef.current = track;
@@ -83,20 +84,20 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
           }
         });
         room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-          if (cancelled) return;
+          if (roomRef.current !== room) return;
           track.detach();
           if (attachedTrackRef.current === track) {
             attachedTrackRef.current = null;
           }
         });
         room.on(RoomEvent.ConnectionStateChanged, (s: ConnectionState) => {
-          if (cancelled) return;
+          if (roomRef.current !== room) return;
           if (s === ConnectionState.Disconnected) setStatus('disconnected');
         });
 
         setStatus('Connecting…');
         await room.connect(tokenResp.livekit_url, tokenResp.viewer_token);
-        if (cancelled) {
+        if (roomRef.current !== room) {
           room.disconnect();
           return;
         }
@@ -116,15 +117,12 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
           });
         });
       } catch (err) {
-        if (!cancelled) setStatus(`error: ${String(err).slice(0, 80)}`);
+        setStatus(`error: ${String(err).slice(0, 80)}`);
       }
     };
 
     run();
-    // Only cancel the in-flight connect; do NOT disconnect here.
-    // The room stays alive while the component is mounted so swiping
-    // away and back shows the stream immediately without reconnecting.
-    return () => { cancelled = true; };
+    // No cleanup: room intentionally stays connected when isActive flips false.
   }, [isActive, stream.id]);
 
   // Disconnect only when the component fully unmounts (stream removed from list).
