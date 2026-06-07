@@ -55,9 +55,14 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
 
-  // Connect to LiveKit only while this stream is the active swipe pane.
+  // Connect on first activation, then stay connected for the lifetime of this
+  // component mount. Disconnecting on every isActive=false → isActive=true cycle
+  // causes a "disconnected" flash because the Room emits ConnectionStateChanged
+  // after cleanup, racing with the new connection's status updates.
   useEffect(() => {
-    if (!isActive) return;
+    // Only connect the first time this stream becomes visible.
+    if (!isActive || roomRef.current !== null) return;
+
     let cancelled = false;
 
     const run = async () => {
@@ -70,6 +75,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
         roomRef.current = room;
 
         room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+          if (cancelled) return;
           if (track.kind === Track.Kind.Video && videoElRef.current) {
             track.attach(videoElRef.current);
             attachedTrackRef.current = track;
@@ -77,12 +83,14 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
           }
         });
         room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+          if (cancelled) return;
           track.detach();
           if (attachedTrackRef.current === track) {
             attachedTrackRef.current = null;
           }
         });
         room.on(RoomEvent.ConnectionStateChanged, (s: ConnectionState) => {
+          if (cancelled) return;
           if (s === ConnectionState.Disconnected) setStatus('disconnected');
         });
 
@@ -92,9 +100,8 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
           room.disconnect();
           return;
         }
-        // If the publisher was already in the room, their tracks may be
-        // available without firing TrackSubscribed again. Walk the participants
-        // to pick up any video track we missed.
+        // Publisher may already be in the room — walk participants to pick up
+        // any video track that arrived before TrackSubscribed could fire.
         room.remoteParticipants.forEach((p) => {
           p.trackPublications.forEach((pub: RemoteTrackPublication) => {
             if (
@@ -114,8 +121,15 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     };
 
     run();
+    // Only cancel the in-flight connect; do NOT disconnect here.
+    // The room stays alive while the component is mounted so swiping
+    // away and back shows the stream immediately without reconnecting.
+    return () => { cancelled = true; };
+  }, [isActive, stream.id]);
+
+  // Disconnect only when the component fully unmounts (stream removed from list).
+  useEffect(() => {
     return () => {
-      cancelled = true;
       if (attachedTrackRef.current && videoElRef.current) {
         try { attachedTrackRef.current.detach(videoElRef.current); } catch {}
       }
@@ -124,7 +138,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
       roomRef.current = null;
       r?.disconnect();
     };
-  }, [isActive, stream.id]);
+  }, []);
 
   useEffect(() => {
     if (!socket || !isActive) return;

@@ -23,12 +23,21 @@ export default function StreamsScreen() {
   const [streams, setStreams] = useState<Stream[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
+
+  const flatListRef = useRef<FlatList<Stream>>(null);
 
   const fetchStreams = useCallback(async () => {
     try {
       const result = await listStreams();
       setStreams(result.streams);
+      // Keep watching the same stream after refresh. Only fall back to the
+      // first stream if the current one is gone from the list.
+      setActiveStreamId((prev) => {
+        const stillInList = result.streams.some((s) => s.id === prev);
+        if (stillInList) return prev;
+        return result.streams.length > 0 ? result.streams[0].id : null;
+      });
     } catch (err) {
       console.error('Failed to load streams:', err);
     } finally {
@@ -48,8 +57,8 @@ export default function StreamsScreen() {
 
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems.length > 0 && viewableItems[0].index !== null) {
-        setActiveIndex(viewableItems[0].index);
+      if (viewableItems.length > 0 && viewableItems[0].item) {
+        setActiveStreamId(viewableItems[0].item.id);
       }
     },
   ).current;
@@ -67,10 +76,11 @@ export default function StreamsScreen() {
   return (
     <View style={styles.container}>
       <FlatList
+        ref={flatListRef}
         data={streams}
         keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <StreamPlayer stream={item} isActive={index === activeIndex} playerHeight={playerHeight} />
+        renderItem={({ item }) => (
+          <StreamPlayer stream={item} isActive={item.id === activeStreamId} playerHeight={playerHeight} />
         )}
         pagingEnabled
         showsVerticalScrollIndicator={false}
@@ -96,6 +106,22 @@ export default function StreamsScreen() {
         style={styles.list}
         contentContainerStyle={streams.length === 0 ? styles.emptyContainer : undefined}
       />
+
+      {/* Stream position counter — shown only when multiple streams exist */}
+      {streams.length > 1 && (() => {
+        const activeIndex = streams.findIndex((s) => s.id === activeStreamId);
+        if (activeIndex < 0) return null;
+        return (
+          <View style={styles.streamCounter}>
+            <Text style={styles.streamCounterText}>
+              {activeIndex + 1} / {streams.length}
+            </Text>
+            {activeIndex < streams.length - 1 && (
+              <Text style={styles.swipeHint}>↓ swipe</Text>
+            )}
+          </View>
+        );
+      })()}
 
       {/* Floating refresh button — always visible, always tappable */}
       <TouchableOpacity
@@ -141,5 +167,25 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 22,
     fontWeight: '600',
+  },
+  streamCounter: {
+    position: 'absolute',
+    top: 60,
+    right: 70,
+    alignItems: 'center',
+    gap: 2,
+  },
+  streamCounterText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    fontWeight: '600',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  swipeHint: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
   },
 });

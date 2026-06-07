@@ -69,8 +69,9 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
 
-  // Lazily mint a viewer token only for streams that are actually visible.
-  // Off-screen streams in the swipe feed don't waste a JWT slot.
+  // Fetch viewer token on first activation and keep it for the component lifetime.
+  // <LiveKitRoom connect={connect}> handles reconnection internally; we don't
+  // need to clear the token when the user swipes away.
   useEffect(() => {
     if (!isActive || viewerToken) return;
     let cancelled = false;
