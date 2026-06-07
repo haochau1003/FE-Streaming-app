@@ -67,7 +67,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
         const tokenResp = await fetchViewerToken(stream.id);
         if (roomRef.current !== null) return; // unmount beat us
 
-        const room = new Room({ adaptiveStream: true, dynacast: true });
+        const room = new Room({ adaptiveStream: false, dynacast: false });
         roomRef.current = room;
 
         room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
