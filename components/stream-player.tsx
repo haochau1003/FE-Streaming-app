@@ -55,22 +55,17 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
 
-  // Connect on first activation. Once connected the room stays alive for the
-  // full component lifetime — we never disconnect when isActive flips false.
-  // Event handlers guard with `roomRef.current !== room` so that only the
-  // current room can update state; a stale room (after unmount cleanup) is
-  // silently ignored. This avoids the "disconnected" flash that occurs when
-  // a cancelled-flag approach is used and the flag is set while the room is
-  // still alive.
+  // Connect on mount — do not wait for isActive. Every stream in the list
+  // connects immediately so the video is ready regardless of which item the
+  // user scrolls to. isActive only gates the Socket.IO room join below.
   useEffect(() => {
-    if (!isActive || roomRef.current !== null) return;
+    if (roomRef.current !== null) return;
 
     const run = async () => {
       try {
         setStatus('Loading token…');
         const tokenResp = await fetchViewerToken(stream.id);
-        // If unmount ran between the await and here, bail.
-        if (roomRef.current !== null) return;
+        if (roomRef.current !== null) return; // unmount beat us
 
         const room = new Room({ adaptiveStream: true, dynacast: true });
         roomRef.current = room;
@@ -122,8 +117,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     };
 
     run();
-    // No cleanup: room intentionally stays connected when isActive flips false.
-  }, [isActive, stream.id]);
+  }, [stream.id]); // stream.id is stable per mount; effect runs exactly once
 
   // Disconnect only when the component fully unmounts (stream removed from list).
   useEffect(() => {

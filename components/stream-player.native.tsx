@@ -65,22 +65,14 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const [inputText, setInputText] = useState('');
   const [viewerToken, setViewerToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
-  // Latches true on first activation and never goes back to false.
-  // This keeps <LiveKitRoom connect> true even when isActive flips false,
-  // so the stream stays connected when the user swipes away and back.
-  const [hasActivated, setHasActivated] = useState(false);
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
 
-  // Latch hasActivated on first isActive=true.
+  // Fetch the viewer token on mount — do not wait for isActive. Every stream
+  // in the list connects immediately so the video is ready when scrolled to.
   useEffect(() => {
-    if (isActive && !hasActivated) setHasActivated(true);
-  }, [isActive, hasActivated]);
-
-  // Fetch the viewer token once, on first activation.
-  useEffect(() => {
-    if (!hasActivated || viewerToken) return;
+    if (viewerToken) return;
     let cancelled = false;
     fetchViewerToken(stream.id)
       .then((res) => {
@@ -92,7 +84,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     return () => {
       cancelled = true;
     };
-  }, [hasActivated, stream.id, viewerToken]);
+  }, [stream.id, viewerToken]);
 
   // Join the Socket.IO room for chat + control events (mute/end_stream).
   useEffect(() => {
@@ -115,8 +107,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   };
 
   const serverUrl = stream.livekit_url;
-  // Stay connected once activated; only gate on token availability.
-  const connect = Boolean(hasActivated && viewerToken && serverUrl);
+  const connect = Boolean(viewerToken && serverUrl);
 
   return (
     <View style={[styles.container, { height: playerHeight }]}>
