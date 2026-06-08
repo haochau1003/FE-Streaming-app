@@ -16,7 +16,7 @@ import {
 } from '@livekit/react-native';
 import { Track } from 'livekit-client';
 
-import { Stream, fetchViewerToken } from '@/lib/streams';
+import { Stream, fetchViewerToken, fetchViewerCount } from '@/lib/streams';
 import { CommentPanel } from '@/features/social/components/comment-panel';
 import { FloatingHearts } from '@/features/social/components/floating-hearts';
 import { FollowButton } from '@/features/social/components/follow-button';
@@ -67,6 +67,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
   const [inputText, setInputText] = useState('');
   const [viewerToken, setViewerToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
+  const [viewerCount, setViewerCount] = useState<number | null>(null);
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
@@ -87,6 +88,20 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
       cancelled = true;
     };
   }, [stream.id, viewerToken]);
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const count = await fetchViewerCount(stream.id);
+        setViewerCount(count);
+      } catch {
+        // silently ignore — stale count is fine
+      }
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  }, [stream.id]);
 
   // Join the Socket.IO room for chat + control events (mute/end_stream).
   useEffect(() => {
@@ -141,7 +156,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
         </View>
         <View style={styles.viewerCount}>
           <Text style={styles.eyeIcon}>👁</Text>
-          <Text style={styles.viewerNum}>—</Text>
+          <Text style={styles.viewerNum}>{viewerCount ?? '—'}</Text>
         </View>
         <FollowButton userId={null} />
       </View>

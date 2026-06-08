@@ -117,6 +117,11 @@ export async function likeStream(streamId: string): Promise<{ like_count: number
  * Optional identity / display_name body — backend derives one from
  * request.remote_addr when omitted. See app/api/stream_routes.py.
  */
+export async function fetchViewerCount(streamId: string): Promise<number> {
+  const data = await request<{ count: number }>(`/api/v1/streams/${streamId}/viewer-count`);
+  return data.count;
+}
+
 export async function fetchViewerToken(
   streamId: string,
   input: { identity?: string; display_name?: string } = {},

@@ -17,7 +17,7 @@ import {
   Track,
 } from 'livekit-client';
 
-import { Stream, fetchViewerToken } from '@/lib/streams';
+import { Stream, fetchViewerToken, fetchViewerCount } from '@/lib/streams';
 import { CommentPanel } from '@/features/social/components/comment-panel';
 import { FloatingHearts } from '@/features/social/components/floating-hearts';
 import { FollowButton } from '@/features/social/components/follow-button';
@@ -95,6 +95,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
   const [inputText, setInputText] = useState('');
   const [status, setStatus] = useState<string>('idle');
   const [streamMuted, setStreamMuted] = useState(false);
+  const [viewerCount, setViewerCount] = useState<number | null>(null);
 
   const videoElRef = useRef<HTMLVideoElement | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
@@ -269,6 +270,20 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
     return () => { socket.off('stream_state_update', onStateUpdate); };
   }, [socket, stream.id]);
 
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const count = await fetchViewerCount(stream.id);
+        setViewerCount(count);
+      } catch {
+        // silently ignore — stale count is fine
+      }
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  }, [stream.id]);
+
   // Keep ref in sync so closures (observer, track handlers) see the latest value.
   useEffect(() => {
     viewerVolumeRef.current = viewerVolume;
@@ -328,7 +343,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
         ) : null}
         <View style={styles.viewerCount}>
           <Text style={styles.eyeIcon}>👁</Text>
-          <Text style={styles.viewerNum}>—</Text>
+          <Text style={styles.viewerNum}>{viewerCount ?? '—'}</Text>
         </View>
         <FollowButton userId={null} />
       </View>

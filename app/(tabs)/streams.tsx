@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   emptyHint: { color: '#888', fontSize: 14, marginTop: 8 },
   refreshBtn: {
     position: 'absolute',
-    top: 60,
+    top: 120,
     right: 16,
     width: 44,
     height: 44,
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   // Volume control: icon button + expandable slider to its left
   volumeControl: {
     position: 'absolute',
-    top: 116,
+    top: 176,
     right: 16,
     flexDirection: 'row',
     alignItems: 'center',
