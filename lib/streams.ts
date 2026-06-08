@@ -15,6 +15,7 @@ export interface Stream {
   // LiveKit room name (equal to stream.id; convenience field).
   room_name: string;
   like_count: number;
+  owner_id: string | null;
   owner_identity: string | null;
   owner_display_name: string | null;
   created_at: string;

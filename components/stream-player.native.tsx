@@ -159,13 +159,13 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
       <View style={styles.topBar}>
         <View style={styles.streamerPill}>
           <TouchableOpacity
-            onPress={() => stream.owner_identity && router.push(`/profile/${stream.owner_identity}` as any)}
-            activeOpacity={stream.owner_identity ? 0.7 : 1}
+            onPress={() => stream.owner_id && router.push(`/profile/${stream.owner_id}` as any)}
+            activeOpacity={stream.owner_id ? 0.7 : 1}
             style={styles.avatarBtn}
           >
             <View style={styles.avatarPlaceholder}>
               <Text style={styles.avatarInitials}>
-                {getInitials(stream.owner_display_name)}
+                {getInitials(stream.owner_display_name || stream.title)}
               </Text>
             </View>
           </TouchableOpacity>
