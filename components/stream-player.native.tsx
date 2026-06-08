@@ -77,6 +77,8 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
   const [viewerToken, setViewerToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [viewerCount, setViewerCount] = useState<number | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(stream.owner_id);
+  const [ownerDisplayName, setOwnerDisplayName] = useState<string | null>(stream.owner_display_name);
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
@@ -116,8 +118,19 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
   useEffect(() => {
     if (!socket || !isActive) return;
     socket.emit('join_room', { stream_id: stream.id });
+
+    const handleStateUpdate = (data: any) => {
+      if (data?.stream_id !== stream.id) return;
+      if (data?.effect === 'owner_updated') {
+        setOwnerId(data.owner_id ?? null);
+        setOwnerDisplayName(data.owner_display_name ?? null);
+      }
+    };
+    socket.on('stream_state_update', handleStateUpdate);
+
     return () => {
       socket.emit('leave_room', { stream_id: stream.id });
+      socket.off('stream_state_update', handleStateUpdate);
     };
   }, [socket, isActive, stream.id]);
 
@@ -159,18 +172,18 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
       <View style={styles.topBar}>
         <View style={styles.streamerPill}>
           <TouchableOpacity
-            onPress={() => stream.owner_id && router.push(`/profile/${stream.owner_id}` as any)}
-            activeOpacity={stream.owner_id ? 0.7 : 1}
+            onPress={() => ownerId && router.push(`/profile/${ownerId}` as any)}
+            activeOpacity={ownerId ? 0.7 : 1}
             style={styles.avatarBtn}
           >
             <View style={styles.avatarPlaceholder}>
               <Text style={styles.avatarInitials}>
-                {getInitials(stream.owner_display_name || stream.title)}
+                {getInitials(ownerDisplayName || stream.title)}
               </Text>
             </View>
           </TouchableOpacity>
           <Text style={styles.username} numberOfLines={1}>
-            {stream.owner_display_name || stream.title || 'Untitled'}
+            {ownerDisplayName || stream.title || 'Untitled'}
           </Text>
         </View>
         <View style={styles.viewerCount}>
