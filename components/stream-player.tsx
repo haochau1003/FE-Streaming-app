@@ -31,6 +31,34 @@ const { width } = Dimensions.get('window');
 // request.remote_addr, which is the load balancer IP — identical for every viewer.
 const SESSION_VIEWER_ID = `viewer-${Math.random().toString(36).slice(2)}`;
 
+// Browsers block el.play() until the user has interacted with the page.
+// schedulePlay() plays immediately if already unlocked, otherwise queues the
+// element and drains the queue on the first user gesture.
+let _audioUnlocked = false;
+const _pendingAudio = new Set<HTMLAudioElement>();
+
+function _drainPendingAudio() {
+  _audioUnlocked = true;
+  _pendingAudio.forEach((el) => el.play().catch(() => {}));
+  _pendingAudio.clear();
+}
+
+if (typeof window !== 'undefined') {
+  const opts = { once: true, capture: true };
+  window.addEventListener('click', _drainPendingAudio, opts);
+  window.addEventListener('scroll', _drainPendingAudio, opts);
+  window.addEventListener('keydown', _drainPendingAudio, opts);
+  window.addEventListener('touchstart', _drainPendingAudio, opts);
+}
+
+function schedulePlay(el: HTMLAudioElement) {
+  if (_audioUnlocked) {
+    el.play().catch(() => {});
+  } else {
+    _pendingAudio.add(el);
+  }
+}
+
 interface StreamPlayerProps {
   stream: Stream;
   isActive: boolean;
@@ -87,13 +115,14 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
           } else if (track.kind === Track.Kind.Audio) {
             const el = document.createElement('audio');
             el.muted = true; // muted before play() fires, avoids autoplay block
+            el.volume = 1.0;
             document.body.appendChild(el);
             track.attach(el);
             audioElRef.current = el;
             attachedAudioRef.current = track;
             if (isVisibleRef.current) {
               el.muted = false;
-              el.play().catch(() => {});
+              schedulePlay(el);
             }
           }
         });
@@ -132,13 +161,14 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
             } else if (pub.track.kind === Track.Kind.Audio) {
               const el = document.createElement('audio');
               el.muted = true;
+              el.volume = 1.0;
               document.body.appendChild(el);
               pub.track.attach(el);
               audioElRef.current = el;
               attachedAudioRef.current = pub.track;
               if (isVisibleRef.current) {
                 el.muted = false;
-                el.play().catch(() => {});
+                schedulePlay(el);
               }
             }
           });
@@ -162,8 +192,11 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
         try { attachedAudioRef.current.detach(); } catch {}
         attachedAudioRef.current = null;
       }
-      audioElRef.current?.remove();
-      audioElRef.current = null;
+      if (audioElRef.current) {
+        _pendingAudio.delete(audioElRef.current);
+        audioElRef.current.remove();
+        audioElRef.current = null;
+      }
       const r = roomRef.current;
       roomRef.current = null;
       r?.disconnect();
@@ -179,7 +212,8 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
         const audio = audioElRef.current;
         if (audio) {
           audio.muted = !entry.isIntersecting;
-          if (entry.isIntersecting) audio.play().catch(() => {});
+          if (entry.isIntersecting) schedulePlay(audio);
+          else _pendingAudio.delete(audio);
         }
       },
       { threshold: 0.8 },
