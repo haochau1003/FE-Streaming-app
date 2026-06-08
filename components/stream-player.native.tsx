@@ -16,6 +16,7 @@ import {
 } from '@livekit/react-native';
 import { Track } from 'livekit-client';
 
+import { useRouter } from 'expo-router';
 import { Stream, fetchViewerToken, fetchViewerCount } from '@/lib/streams';
 import { CommentPanel } from '@/features/social/components/comment-panel';
 import { FloatingHearts } from '@/features/social/components/floating-hearts';
@@ -61,8 +62,16 @@ function PublishedVideo({ playerHeight }: { playerHeight: number }) {
   );
 }
 
+function getInitials(name: string | null): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function StreamPlayer({ stream, isActive, playerHeight, viewerVolume }: StreamPlayerProps) {
+  const router = useRouter();
   const [heartTrigger, setHeartTrigger] = useState(0);
   const [inputText, setInputText] = useState('');
   const [viewerToken, setViewerToken] = useState<string | null>(null);
@@ -149,9 +158,19 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
       {/* Top bar: avatar pill + viewer count + follow */}
       <View style={styles.topBar}>
         <View style={styles.streamerPill}>
-          <View style={styles.avatarPlaceholder} />
+          <TouchableOpacity
+            onPress={() => stream.owner_identity && router.push(`/profile/${stream.owner_identity}` as any)}
+            activeOpacity={stream.owner_identity ? 0.7 : 1}
+            style={styles.avatarBtn}
+          >
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarInitials}>
+                {getInitials(stream.owner_display_name)}
+              </Text>
+            </View>
+          </TouchableOpacity>
           <Text style={styles.username} numberOfLines={1}>
-            {stream.title || 'Untitled'}
+            {stream.owner_display_name || stream.title || 'Untitled'}
           </Text>
         </View>
         <View style={styles.viewerCount}>
@@ -217,7 +236,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     gap: 8,
   },
-  avatarPlaceholder: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#888' },
+  avatarBtn: { borderRadius: 16 },
+  avatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#555',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitials: { color: '#fff', fontSize: 11, fontWeight: '700' },
   username: { color: '#fff', fontSize: 14, fontWeight: '500', flex: 1 },
   viewerCount: {
     flexDirection: 'row',

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ConnectionState,
@@ -90,7 +91,15 @@ interface StreamPlayerProps {
  * wraps react-native-webrtc), and livekit-client cannot run in RN (it
  * uses browser-only APIs). Same protocol, two SDKs.
  */
+function getInitials(name: string | null): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 export default function StreamPlayer({ stream, isActive, playerHeight, viewerVolume }: StreamPlayerProps) {
+  const router = useRouter();
   const [heartTrigger, setHeartTrigger] = useState(0);
   const [inputText, setInputText] = useState('');
   const [status, setStatus] = useState<string>('idle');
@@ -331,9 +340,19 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
 
       <View style={styles.topBar}>
         <View style={styles.streamerPill}>
-          <View style={styles.avatarPlaceholder} />
+          <TouchableOpacity
+            onPress={() => stream.owner_identity && router.push(`/profile/${stream.owner_identity}` as any)}
+            activeOpacity={stream.owner_identity ? 0.7 : 1}
+            style={styles.avatarBtn}
+          >
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarInitials}>
+                {getInitials(stream.owner_display_name)}
+              </Text>
+            </View>
+          </TouchableOpacity>
           <Text style={styles.username} numberOfLines={1}>
-            {stream.title || 'Untitled'}
+            {stream.owner_display_name || stream.title || 'Untitled'}
           </Text>
         </View>
         {streamMuted ? (
@@ -412,7 +431,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     gap: 8,
   },
-  avatarPlaceholder: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#888' },
+  avatarBtn: { borderRadius: 16 },
+  avatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#555',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitials: { color: '#fff', fontSize: 11, fontWeight: '700' },
   username: { color: '#fff', fontSize: 14, fontWeight: '500', flex: 1 },
   viewerCount: {
     flexDirection: 'row',
