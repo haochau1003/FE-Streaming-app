@@ -31,24 +31,29 @@ const { width } = Dimensions.get('window');
 // request.remote_addr, which is the load balancer IP — identical for every viewer.
 const SESSION_VIEWER_ID = `viewer-${Math.random().toString(36).slice(2)}`;
 
-// Browsers block el.play() until the user has interacted with the page.
-// schedulePlay() plays immediately if already unlocked, otherwise queues the
-// element and drains the queue on the first user gesture.
+// Browsers block audio until the first user gesture.
+// LiveKit has TWO audio layers that both need unlocking:
+//   1. The <audio> element's play() call
+//   2. LiveKit's internal AudioContext (used for audio processing)
+// We track both and drain them on the first user interaction.
 let _audioUnlocked = false;
 const _pendingAudio = new Set<HTMLAudioElement>();
+const _pendingRooms = new Set<Room>();
 
-function _drainPendingAudio() {
+function _drainPending() {
   _audioUnlocked = true;
   _pendingAudio.forEach((el) => el.play().catch(() => {}));
   _pendingAudio.clear();
+  _pendingRooms.forEach((r) => r.startAudio().catch(() => {}));
+  _pendingRooms.clear();
 }
 
 if (typeof window !== 'undefined') {
   const opts = { once: true, capture: true };
-  window.addEventListener('click', _drainPendingAudio, opts);
-  window.addEventListener('scroll', _drainPendingAudio, opts);
-  window.addEventListener('keydown', _drainPendingAudio, opts);
-  window.addEventListener('touchstart', _drainPendingAudio, opts);
+  window.addEventListener('click', _drainPending, opts);
+  window.addEventListener('scroll', _drainPending, opts);
+  window.addEventListener('keydown', _drainPending, opts);
+  window.addEventListener('touchstart', _drainPending, opts);
 }
 
 function schedulePlay(el: HTMLAudioElement) {
@@ -56,6 +61,14 @@ function schedulePlay(el: HTMLAudioElement) {
     el.play().catch(() => {});
   } else {
     _pendingAudio.add(el);
+  }
+}
+
+function scheduleRoomAudio(room: Room) {
+  if (_audioUnlocked) {
+    room.startAudio().catch(() => {});
+  } else {
+    _pendingRooms.add(room);
   }
 }
 
@@ -149,6 +162,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
           room.disconnect();
           return;
         }
+        scheduleRoomAudio(room);
         // Publisher may already be in the room — walk participants to pick up
         // any video track that arrived before TrackSubscribed could fire.
         room.remoteParticipants.forEach((p) => {
@@ -199,7 +213,10 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
       }
       const r = roomRef.current;
       roomRef.current = null;
-      r?.disconnect();
+      if (r) {
+        _pendingRooms.delete(r);
+        r.disconnect();
+      }
     };
   }, []);
 
