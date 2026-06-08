@@ -93,6 +93,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const [heartTrigger, setHeartTrigger] = useState(0);
   const [inputText, setInputText] = useState('');
   const [status, setStatus] = useState<string>('idle');
+  const [streamMuted, setStreamMuted] = useState(false);
 
   const videoElRef = useRef<HTMLVideoElement | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
@@ -247,6 +248,17 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     };
   }, [socket, isActive, stream.id]);
 
+  useEffect(() => {
+    if (!socket) return;
+    const onStateUpdate = (data: { stream_id: string; effect: string }) => {
+      if (data.stream_id !== stream.id) return;
+      if (data.effect === 'muted') setStreamMuted(true);
+      else if (data.effect === 'unmuted') setStreamMuted(false);
+    };
+    socket.on('stream_state_update', onStateUpdate);
+    return () => { socket.off('stream_state_update', onStateUpdate); };
+  }, [socket, stream.id]);
+
   const handleSend = () => {
     if (!inputText.trim()) return;
     sendComment(inputText.trim());
@@ -282,6 +294,11 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
             {stream.title || 'Untitled'}
           </Text>
         </View>
+        {streamMuted ? (
+          <View style={styles.mutedBadge}>
+            <Text style={styles.mutedText}>🔇 MUTED</Text>
+          </View>
+        ) : null}
         <View style={styles.viewerCount}>
           <Text style={styles.eyeIcon}>👁</Text>
           <Text style={styles.viewerNum}>—</Text>
@@ -401,4 +418,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heartIcon: { fontSize: 24 },
+  mutedBadge: {
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  mutedText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 });
