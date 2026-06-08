@@ -58,6 +58,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const roomRef = useRef<Room | null>(null);
   const attachedTrackRef = useRef<RemoteTrack | null>(null);
   const attachedAudioRef = useRef<RemoteTrack | null>(null);
+  const isVisibleRef = useRef(false);
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
@@ -84,10 +85,16 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
             attachedTrackRef.current = track;
             setStatus('connected');
           } else if (track.kind === Track.Kind.Audio) {
-            const el = track.attach() as HTMLAudioElement;
+            const el = document.createElement('audio');
+            el.muted = true; // muted before play() fires, avoids autoplay block
             document.body.appendChild(el);
+            track.attach(el);
             audioElRef.current = el;
             attachedAudioRef.current = track;
+            if (isVisibleRef.current) {
+              el.muted = false;
+              el.play().catch(() => {});
+            }
           }
         });
         room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
@@ -123,10 +130,16 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
               attachedTrackRef.current = pub.track;
               setStatus('connected');
             } else if (pub.track.kind === Track.Kind.Audio) {
-              const el = pub.track.attach() as HTMLAudioElement;
+              const el = document.createElement('audio');
+              el.muted = true;
               document.body.appendChild(el);
+              pub.track.attach(el);
               audioElRef.current = el;
               attachedAudioRef.current = pub.track;
+              if (isVisibleRef.current) {
+                el.muted = false;
+                el.play().catch(() => {});
+              }
             }
           });
         });
@@ -155,6 +168,24 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
       roomRef.current = null;
       r?.disconnect();
     };
+  }, []);
+
+  useEffect(() => {
+    const video = videoElRef.current;
+    if (!video) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisibleRef.current = entry.isIntersecting;
+        const audio = audioElRef.current;
+        if (audio) {
+          audio.muted = !entry.isIntersecting;
+          if (entry.isIntersecting) audio.play().catch(() => {});
+        }
+      },
+      { threshold: 0.8 },
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
