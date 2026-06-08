@@ -26,6 +26,11 @@ import { useSocket } from '@/lib/api/realtime';
 
 const { width } = Dimensions.get('window');
 
+// One stable ID per page load, shared across all stream connections in this tab.
+// Passed as the LiveKit participant identity so the backend doesn't fall back to
+// request.remote_addr, which is the load balancer IP — identical for every viewer.
+const SESSION_VIEWER_ID = `viewer-${Math.random().toString(36).slice(2)}`;
+
 interface StreamPlayerProps {
   stream: Stream;
   isActive: boolean;
@@ -64,7 +69,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     const run = async () => {
       try {
         setStatus('Loading token…');
-        const tokenResp = await fetchViewerToken(stream.id);
+        const tokenResp = await fetchViewerToken(stream.id, { identity: SESSION_VIEWER_ID });
         if (roomRef.current !== null) return; // unmount beat us
 
         const room = new Room({ adaptiveStream: false, dynacast: false });
