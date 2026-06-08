@@ -54,8 +54,10 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const [status, setStatus] = useState<string>('idle');
 
   const videoElRef = useRef<HTMLVideoElement | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
   const roomRef = useRef<Room | null>(null);
   const attachedTrackRef = useRef<RemoteTrack | null>(null);
+  const attachedAudioRef = useRef<RemoteTrack | null>(null);
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
@@ -81,6 +83,11 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
             track.attach(videoElRef.current);
             attachedTrackRef.current = track;
             setStatus('connected');
+          } else if (track.kind === Track.Kind.Audio) {
+            const el = track.attach() as HTMLAudioElement;
+            document.body.appendChild(el);
+            audioElRef.current = el;
+            attachedAudioRef.current = track;
           }
         });
         room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
@@ -88,6 +95,11 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
           track.detach();
           if (attachedTrackRef.current === track) {
             attachedTrackRef.current = null;
+          }
+          if (attachedAudioRef.current === track) {
+            audioElRef.current?.remove();
+            audioElRef.current = null;
+            attachedAudioRef.current = null;
           }
         });
         room.on(RoomEvent.ConnectionStateChanged, (s: ConnectionState) => {
@@ -105,14 +117,16 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
         // any video track that arrived before TrackSubscribed could fire.
         room.remoteParticipants.forEach((p) => {
           p.trackPublications.forEach((pub: RemoteTrackPublication) => {
-            if (
-              pub.track &&
-              pub.track.kind === Track.Kind.Video &&
-              videoElRef.current
-            ) {
+            if (!pub.track) return;
+            if (pub.track.kind === Track.Kind.Video && videoElRef.current) {
               pub.track.attach(videoElRef.current);
               attachedTrackRef.current = pub.track;
               setStatus('connected');
+            } else if (pub.track.kind === Track.Kind.Audio) {
+              const el = pub.track.attach() as HTMLAudioElement;
+              document.body.appendChild(el);
+              audioElRef.current = el;
+              attachedAudioRef.current = pub.track;
             }
           });
         });
@@ -131,6 +145,12 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
         try { attachedTrackRef.current.detach(videoElRef.current); } catch {}
       }
       attachedTrackRef.current = null;
+      if (attachedAudioRef.current) {
+        try { attachedAudioRef.current.detach(); } catch {}
+        attachedAudioRef.current = null;
+      }
+      audioElRef.current?.remove();
+      audioElRef.current = null;
       const r = roomRef.current;
       roomRef.current = null;
       r?.disconnect();

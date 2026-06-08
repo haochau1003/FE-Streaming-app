@@ -107,22 +107,6 @@ export default function StreamsScreen() {
         contentContainerStyle={streams.length === 0 ? styles.emptyContainer : undefined}
       />
 
-      {/* Stream position counter — shown only when multiple streams exist */}
-      {streams.length > 1 && (() => {
-        const activeIndex = streams.findIndex((s) => s.id === activeStreamId);
-        if (activeIndex < 0) return null;
-        return (
-          <View style={styles.streamCounter}>
-            <Text style={styles.streamCounterText}>
-              {activeIndex + 1} / {streams.length}
-            </Text>
-            {activeIndex < streams.length - 1 && (
-              <Text style={styles.swipeHint}>↓ swipe</Text>
-            )}
-          </View>
-        );
-      })()}
-
       {/* Floating refresh button — always visible, always tappable */}
       <TouchableOpacity
         style={styles.refreshBtn}
@@ -167,25 +151,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 22,
     fontWeight: '600',
-  },
-  streamCounter: {
-    position: 'absolute',
-    top: 60,
-    right: 70,
-    alignItems: 'center',
-    gap: 2,
-  },
-  streamCounterText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
-    fontWeight: '600',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  swipeHint: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
   },
 });

@@ -19,13 +19,14 @@ export function useComments(streamId: string) {
   useEffect(() => {
     if (!socket) return;
     const onComment = (data: Comment) => {
+      if (data.stream_id !== streamId) return;
       setComments((prev) => [...prev, data]);
     };
     socket.on('comment_received', onComment);
     return () => {
       socket.off('comment_received', onComment);
     };
-  }, [socket]);
+  }, [socket, streamId]);
 
   const sendComment = useCallback(
     (content: string) => {
