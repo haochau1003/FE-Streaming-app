@@ -15,6 +15,8 @@ import { listStreams, Stream } from '@/lib/streams';
 import StreamPlayer from '@/components/stream-player';
 
 const SLIDER_WIDTH = 150;
+const SLIDER_PADDING = 14;
+const TRACK_WIDTH = SLIDER_WIDTH - SLIDER_PADDING * 2; // 122 — usable drag area
 
 function volumeIcon(v: number) {
   if (v === 0) return '🔇';
@@ -139,16 +141,16 @@ export default function StreamsScreen() {
             onStartShouldSetResponder={() => true}
             onMoveShouldSetResponder={() => true}
             onResponderGrant={(e) =>
-              setViewerVolume(Math.max(0, Math.min(1, e.nativeEvent.locationX / SLIDER_WIDTH)))
+              setViewerVolume(Math.max(0, Math.min(1, (e.nativeEvent.locationX - SLIDER_PADDING) / TRACK_WIDTH)))
             }
             onResponderMove={(e) =>
-              setViewerVolume(Math.max(0, Math.min(1, e.nativeEvent.locationX / SLIDER_WIDTH)))
+              setViewerVolume(Math.max(0, Math.min(1, (e.nativeEvent.locationX - SLIDER_PADDING) / TRACK_WIDTH)))
             }
           >
             <View style={styles.sliderTrack}>
-              <View style={[styles.sliderFill, { width: viewerVolume * SLIDER_WIDTH }]} />
+              <View style={[styles.sliderFill, { width: viewerVolume * TRACK_WIDTH }]} />
             </View>
-            <View style={[styles.sliderThumb, { left: viewerVolume * SLIDER_WIDTH - 10 }]} />
+            <View style={[styles.sliderThumb, { left: SLIDER_PADDING + viewerVolume * TRACK_WIDTH - 10 }]} />
           </View>
         )}
         <TouchableOpacity
@@ -226,7 +228,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#fff',
     top: 12, // (44 - 20) / 2
-    marginLeft: 14, // matches paddingHorizontal of sliderContainer
   },
   volumeBtn: {
     width: 44,
