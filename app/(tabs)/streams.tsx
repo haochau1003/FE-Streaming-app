@@ -14,6 +14,15 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { listStreams, Stream } from '@/lib/streams';
 import StreamPlayer from '@/components/stream-player';
 
+const SLIDER_WIDTH = 150;
+
+function volumeIcon(v: number) {
+  if (v === 0) return '🔇';
+  if (v < 0.35) return '🔈';
+  if (v < 0.7) return '🔉';
+  return '🔊';
+}
+
 const { height: windowHeight } = Dimensions.get('window');
 
 export default function StreamsScreen() {
@@ -24,6 +33,8 @@ export default function StreamsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
+  const [viewerVolume, setViewerVolume] = useState(1.0);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
   const flatListRef = useRef<FlatList<Stream>>(null);
 
@@ -80,7 +91,7 @@ export default function StreamsScreen() {
         data={streams}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <StreamPlayer stream={item} isActive={item.id === activeStreamId} playerHeight={playerHeight} />
+          <StreamPlayer stream={item} isActive={item.id === activeStreamId} playerHeight={playerHeight} viewerVolume={viewerVolume} />
         )}
         pagingEnabled
         showsVerticalScrollIndicator={false}
@@ -119,6 +130,34 @@ export default function StreamsScreen() {
           <Text style={styles.refreshIcon}>↻</Text>
         )}
       </TouchableOpacity>
+
+      {/* Floating volume control — speaker icon expands to a slider */}
+      <View style={styles.volumeControl}>
+        {showVolumeSlider && (
+          <View
+            style={styles.sliderContainer}
+            onStartShouldSetResponder={() => true}
+            onMoveShouldSetResponder={() => true}
+            onResponderGrant={(e) =>
+              setViewerVolume(Math.max(0, Math.min(1, e.nativeEvent.locationX / SLIDER_WIDTH)))
+            }
+            onResponderMove={(e) =>
+              setViewerVolume(Math.max(0, Math.min(1, e.nativeEvent.locationX / SLIDER_WIDTH)))
+            }
+          >
+            <View style={styles.sliderTrack}>
+              <View style={[styles.sliderFill, { width: viewerVolume * SLIDER_WIDTH }]} />
+            </View>
+            <View style={[styles.sliderThumb, { left: viewerVolume * SLIDER_WIDTH - 10 }]} />
+          </View>
+        )}
+        <TouchableOpacity
+          style={styles.volumeBtn}
+          onPress={() => setShowVolumeSlider((v) => !v)}
+          activeOpacity={0.7}>
+          <Text style={styles.volumeIcon}>{volumeIcon(viewerVolume)}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -151,5 +190,54 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 22,
     fontWeight: '600',
+  },
+  // Volume control: icon button + expandable slider to its left
+  volumeControl: {
+    position: 'absolute',
+    top: 116,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sliderContainer: {
+    width: SLIDER_WIDTH,
+    height: 44,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 22,
+    paddingHorizontal: 14,
+  },
+  sliderTrack: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  sliderFill: {
+    height: 4,
+    backgroundColor: '#fff',
+    borderRadius: 2,
+  },
+  sliderThumb: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    top: 12, // (44 - 20) / 2
+    marginLeft: 14, // matches paddingHorizontal of sliderContainer
+  },
+  volumeBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backdropFilter: 'blur(10px)',
+  },
+  volumeIcon: {
+    fontSize: 22,
   },
 });

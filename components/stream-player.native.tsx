@@ -33,6 +33,7 @@ interface StreamPlayerProps {
   stream: Stream;
   isActive: boolean;
   playerHeight: number;
+  viewerVolume: number; // 0.0 – 1.0; reserved for native volume control
 }
 
 /**
@@ -60,7 +61,8 @@ function PublishedVideo({ playerHeight }: { playerHeight: number }) {
   );
 }
 
-export default function StreamPlayer({ stream, isActive, playerHeight }: StreamPlayerProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function StreamPlayer({ stream, isActive, playerHeight, viewerVolume }: StreamPlayerProps) {
   const [heartTrigger, setHeartTrigger] = useState(0);
   const [inputText, setInputText] = useState('');
   const [viewerToken, setViewerToken] = useState<string | null>(null);

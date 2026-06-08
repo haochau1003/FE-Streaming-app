@@ -76,6 +76,7 @@ interface StreamPlayerProps {
   stream: Stream;
   isActive: boolean;
   playerHeight: number;
+  viewerVolume: number; // 0.0 – 1.0; global volume set by the viewer in streams.tsx
 }
 
 /**
@@ -89,7 +90,7 @@ interface StreamPlayerProps {
  * wraps react-native-webrtc), and livekit-client cannot run in RN (it
  * uses browser-only APIs). Same protocol, two SDKs.
  */
-export default function StreamPlayer({ stream, isActive, playerHeight }: StreamPlayerProps) {
+export default function StreamPlayer({ stream, isActive, playerHeight, viewerVolume }: StreamPlayerProps) {
   const [heartTrigger, setHeartTrigger] = useState(0);
   const [inputText, setInputText] = useState('');
   const [status, setStatus] = useState<string>('idle');
@@ -101,6 +102,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
   const attachedTrackRef = useRef<RemoteTrack | null>(null);
   const attachedAudioRef = useRef<RemoteTrack | null>(null);
   const isVisibleRef = useRef(false);
+  const viewerVolumeRef = useRef(viewerVolume);
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
@@ -129,12 +131,12 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
           } else if (track.kind === Track.Kind.Audio) {
             const el = document.createElement('audio');
             el.muted = true; // muted before play() fires, avoids autoplay block
-            el.volume = 1.0;
+            el.volume = viewerVolumeRef.current;
             document.body.appendChild(el);
             track.attach(el);
             audioElRef.current = el;
             attachedAudioRef.current = track;
-            if (isVisibleRef.current) {
+            if (isVisibleRef.current && viewerVolumeRef.current > 0) {
               el.muted = false;
               schedulePlay(el);
             }
@@ -163,7 +165,10 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
           room.disconnect();
           return;
         }
-        scheduleRoomAudio(room);
+        // Only start room audio for the visible stream — room.startAudio() sets
+        // muted=false on all attached elements, so calling it for off-screen
+        // streams would bleed audio from streams the user isn't watching.
+        if (isVisibleRef.current) scheduleRoomAudio(room);
         // Publisher may already be in the room — walk participants to pick up
         // any video track that arrived before TrackSubscribed could fire.
         room.remoteParticipants.forEach((p) => {
@@ -176,12 +181,12 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
             } else if (pub.track.kind === Track.Kind.Audio) {
               const el = document.createElement('audio');
               el.muted = true;
-              el.volume = 1.0;
+              el.volume = viewerVolumeRef.current;
               document.body.appendChild(el);
               pub.track.attach(el);
               audioElRef.current = el;
               attachedAudioRef.current = pub.track;
-              if (isVisibleRef.current) {
+              if (isVisibleRef.current && viewerVolumeRef.current > 0) {
                 el.muted = false;
                 schedulePlay(el);
               }
@@ -229,9 +234,14 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
         isVisibleRef.current = entry.isIntersecting;
         const audio = audioElRef.current;
         if (audio) {
-          audio.muted = !entry.isIntersecting;
-          if (entry.isIntersecting) schedulePlay(audio);
-          else _pendingAudio.delete(audio);
+          if (!entry.isIntersecting) {
+            audio.muted = true;
+            _pendingAudio.delete(audio);
+          } else if (viewerVolumeRef.current > 0) {
+            audio.volume = viewerVolumeRef.current;
+            audio.muted = false;
+            schedulePlay(audio);
+          }
         }
       },
       { threshold: 0.8 },
@@ -258,6 +268,23 @@ export default function StreamPlayer({ stream, isActive, playerHeight }: StreamP
     socket.on('stream_state_update', onStateUpdate);
     return () => { socket.off('stream_state_update', onStateUpdate); };
   }, [socket, stream.id]);
+
+  // Keep ref in sync so closures (observer, track handlers) see the latest value.
+  useEffect(() => {
+    viewerVolumeRef.current = viewerVolume;
+  }, [viewerVolume]);
+
+  // Apply volume change immediately to any currently-attached audio element.
+  useEffect(() => {
+    const audio = audioElRef.current;
+    if (!audio) return;
+    audio.volume = viewerVolume;
+    if (viewerVolume === 0) {
+      audio.muted = true;
+    } else if (isVisibleRef.current) {
+      audio.muted = false;
+    }
+  }, [viewerVolume]);
 
   const handleSend = () => {
     if (!inputText.trim()) return;
