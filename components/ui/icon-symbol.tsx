@@ -21,6 +21,8 @@ const MAPPING = {
   'person.fill': 'person',
   'person.crop.circle': 'account-circle',
   gear: 'settings',
+  'gearshape.fill': 'settings',
+  'camera.fill': 'photo-camera',
   plus: 'add',
   'plus.circle.fill': 'add-circle',
   ellipsis: 'more-horiz',

@@ -96,7 +96,34 @@ function appendFile(fd: FormData, file: UploadFile) {
   );
 }
 
-export function uploadWithProgress(
+async function resolveFile(file: UploadFile): Promise<UploadFile> {
+  // On web, expo-image-picker returns a blob: or data: URI inside a NativeFileSource.
+  // FormData on web only accepts real File/Blob objects, not the { uri, name, type }
+  // RN trick, so we fetch the URI and materialise it as a File first.
+  if (
+    typeof window !== 'undefined' &&
+    !(typeof File !== 'undefined' && file instanceof File) &&
+    !(typeof Blob !== 'undefined' && file instanceof Blob)
+  ) {
+    const native = file as NativeFileSource;
+    if (native.uri.startsWith('blob:') || native.uri.startsWith('data:')) {
+      const resp = await fetch(native.uri);
+      const blob = await resp.blob();
+      return new File([blob], native.name, { type: native.mimeType });
+    }
+  }
+  return file;
+}
+
+export async function uploadWithProgress(
+  file: UploadFile,
+  options: UploadOptions,
+): Promise<MediaItem> {
+  const resolved = await resolveFile(file);
+  return _xhrUpload(resolved, options);
+}
+
+function _xhrUpload(
   file: UploadFile,
   { apiKey: queuedApiKey, meta, onProgress, signal }: UploadOptions,
 ): Promise<MediaItem> {
