@@ -274,6 +274,16 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
   }, [socket, isActive, stream.id]);
 
   useEffect(() => {
+    const audio = audioElRef.current;
+    if (!audio) return;
+    if (streamMuted) {
+      audio.muted = true;
+    } else if (isVisibleRef.current && viewerVolumeRef.current > 0) {
+      audio.muted = false;
+    }
+  }, [streamMuted]);
+
+  useEffect(() => {
     if (!socket) return;
     const onStateUpdate = (data: any) => {
       if (data.stream_id !== stream.id) return;
