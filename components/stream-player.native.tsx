@@ -77,7 +77,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
   const [viewerToken, setViewerToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [viewerCount, setViewerCount] = useState<number | null>(null);
-  const [ownerId, setOwnerId] = useState<string | null>(stream.owner_id);
+  const [ownerId, setOwnerId] = useState<string | null>(stream.owner_identity);
   const [ownerDisplayName, setOwnerDisplayName] = useState<string | null>(stream.owner_display_name);
 
   const { socket } = useSocket();
@@ -122,7 +122,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
     const handleStateUpdate = (data: any) => {
       if (data?.stream_id !== stream.id) return;
       if (data?.effect === 'owner_updated') {
-        setOwnerId(data.owner_id ?? null);
+        setOwnerId(data.owner_identity ?? null);
         setOwnerDisplayName(data.owner_display_name ?? null);
       }
     };

@@ -105,7 +105,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
   const [status, setStatus] = useState<string>('idle');
   const [streamMuted, setStreamMuted] = useState(false);
   const [viewerCount, setViewerCount] = useState<number | null>(null);
-  const [ownerId, setOwnerId] = useState<string | null>(stream.owner_id);
+  const [ownerId, setOwnerId] = useState<string | null>(stream.owner_identity);
   const [ownerDisplayName, setOwnerDisplayName] = useState<string | null>(stream.owner_display_name);
 
   const videoElRef = useRef<HTMLVideoElement | null>(null);
@@ -277,7 +277,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
       if (data.effect === 'muted') setStreamMuted(true);
       else if (data.effect === 'unmuted') setStreamMuted(false);
       else if (data.effect === 'owner_updated') {
-        setOwnerId(data.owner_id ?? null);
+        setOwnerId(data.owner_identity ?? null);
         setOwnerDisplayName(data.owner_display_name ?? null);
       }
     };
