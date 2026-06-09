@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Dimensions,
+  Image,
   StyleSheet,
   Text,
   TextInput,
@@ -18,6 +19,7 @@ import { Track } from 'livekit-client';
 
 import { useRouter } from 'expo-router';
 import { Stream, fetchViewerToken, fetchViewerCount } from '@/lib/streams';
+import { fetchUser } from '@/lib/api/users';
 import { CommentPanel } from '@/features/social/components/comment-panel';
 import { FloatingHearts } from '@/features/social/components/floating-hearts';
 import { FollowButton } from '@/features/social/components/follow-button';
@@ -79,6 +81,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
   const [viewerCount, setViewerCount] = useState<number | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(stream.owner_identity);
   const [ownerDisplayName, setOwnerDisplayName] = useState<string | null>(stream.owner_display_name);
+  const [ownerAvatarUrl, setOwnerAvatarUrl] = useState<string | null>(null);
 
   const { socket } = useSocket();
   const { comments, sendComment, sendEmote } = useComments(stream.id);
@@ -114,6 +117,13 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
     return () => clearInterval(id);
   }, [stream.id]);
 
+  useEffect(() => {
+    if (!ownerId) return;
+    fetchUser(ownerId).then((p) => {
+      if (p.avatar_url) setOwnerAvatarUrl(p.avatar_url);
+    }).catch(() => {});
+  }, [ownerId]);
+
   // Join the Socket.IO room for chat + control events (mute/end_stream).
   useEffect(() => {
     if (!socket || !isActive) return;
@@ -124,6 +134,7 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
       if (data?.effect === 'owner_updated') {
         setOwnerId(data.owner_identity ?? null);
         setOwnerDisplayName(data.owner_display_name ?? null);
+        setOwnerAvatarUrl(null);
       }
     };
     socket.on('stream_state_update', handleStateUpdate);
@@ -177,9 +188,10 @@ export default function StreamPlayer({ stream, isActive, playerHeight, viewerVol
             style={styles.avatarBtn}
           >
             <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarInitials}>
-                {getInitials(ownerDisplayName || stream.title)}
-              </Text>
+              {ownerAvatarUrl
+                ? <Image source={{ uri: ownerAvatarUrl }} style={styles.avatarImage} />
+                : <Text style={styles.avatarInitials}>{getInitials(ownerDisplayName || stream.title)}</Text>
+              }
             </View>
           </TouchableOpacity>
           <Text style={styles.username} numberOfLines={1}>
@@ -259,6 +271,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarInitials: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  avatarImage: { width: 32, height: 32, borderRadius: 16 },
   username: { color: '#fff', fontSize: 14, fontWeight: '500', flex: 1 },
   viewerCount: {
     flexDirection: 'row',
